@@ -28,5 +28,11 @@ public class Main {
         System.out.println("AC final: " + cpu.getAC());
         System.out.println("AX final: " + cpu.getAX());
         System.out.println("BX final: " + cpu.getBX());
+        System.out.println("CX final: " + cpu.getCX());
+        System.out.println("DX final: " + cpu.getDX());
+        
+        System.out.println("Estado BCP: " + ejecutor.getBcp().getEstado());
+        System.out.println("PC guardado en BCP: " + ejecutor.getBcp().getPc());
+        System.out.println("AC guardado en BCP: " + ejecutor.getBcp().getAc());
     } 
 }

@@ -2,15 +2,18 @@ package logica;
 
 import modelo.CPU;
 import modelo.Memoria;
+import modelo.BCP;
 
 public class EjecutorCPU {
     private CPU cpu;
     private Memoria memoria;
+    private BCP bcp;
     private Traductor traductor;
     
     public EjecutorCPU(CPU cpu, Memoria memoria) {
         this.cpu = cpu;
         this.memoria = memoria;
+        this.bcp = new BCP(1);
         this.traductor = new Traductor();
     }
     
@@ -30,12 +33,23 @@ public class EjecutorCPU {
         ejecutarOperacion(opcode, registro, valor);
         
         cpu.setPC(pc + 2);
+        
+        /*Funcionamiento del BCP*/
+        bcp.setEstado("EJECUTANDO");
+        bcp.setPc(cpu.getPC());
+        bcp.setAc(cpu.getAC());
+        bcp.setAx(cpu.getAX());
+        bcp.setBx(cpu.getBX());
+        bcp.setCx(cpu.getCX());
+        bcp.setDx(cpu.getDX());
     }
     
     public void ejecutarPrograma(int cantidadInstrucciones) {
         for (int i = 0; i < cantidadInstrucciones; i++) {
             ejecutarInstruccion();
         }
+        
+        bcp.setEstado("TERMINADO");
     }
     
     private void ejecutarOperacion(String opcode, String registro, int valor) {
@@ -87,5 +101,9 @@ public class EjecutorCPU {
                 cpu.setDX(valor); 
                 break;
         }
+    }
+    
+    public BCP getBcp() {
+        return bcp;
     }
 }
