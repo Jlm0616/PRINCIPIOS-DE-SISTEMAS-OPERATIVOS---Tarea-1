@@ -26,7 +26,7 @@ public class Memoria {
         return posicion < limiteKernelUsuario;
     }
     
-    /*GETS*/
+    /*GETTERS*/
     public int getTamanoMemoria() {
         return tamanoMemoria;
     }

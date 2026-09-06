@@ -10,6 +10,8 @@ public class Instruccion {
         this.registro = registro;
         this.valor = valor;
     }
+    
+
     /*GETTERS*/
     public String getOpcode() {
         return opcode;

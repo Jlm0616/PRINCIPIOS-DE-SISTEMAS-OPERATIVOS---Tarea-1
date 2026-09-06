@@ -48,4 +48,29 @@ public class Traductor {
         
         return codigo;
     }
+    
+    public String decodificarOpcode(String codigo) {
+        for (Map.Entry<String, String> entrada : mapOpcode.entrySet()) {
+            if (entrada.getValue().equals(codigo)) {
+                return entrada.getKey();
+            }
+        }
+        return null;
+    }
+
+    public String decodificarRegistro(String codigo) {
+        for (Map.Entry<String, String> entrada : mapRegistro.entrySet()) {
+            if (entrada.getValue().equals(codigo)) {
+                return entrada.getKey();
+            }
+        }
+        return null;
+    }
+    
+    public int decodificarValor(String byteValor) {
+        char signo = byteValor.charAt(0);
+        String magnitudBinaria = byteValor.substring(1, 8);
+        int magnitud = Integer.parseInt(magnitudBinaria, 2);
+        return signo == '1' ? -magnitud : magnitud;
+    }
 }
