@@ -22,6 +22,9 @@ public class EjecutorCPU {
         
         String primerByte = memoria.leer(pc);
         String segundoByte = memoria.leer(pc + 1);
+
+        String instruccionCompleta = primerByte + segundoByte;
+        cpu.setIR(Integer.parseInt(instruccionCompleta, 2));
         
         String codigoOpcode = primerByte.substring(0, 4);
         String codigoRegistro = primerByte.substring(4, 8);

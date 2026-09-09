@@ -26,6 +26,14 @@ public class Memoria {
         return posicion < limiteKernelUsuario;
     }
     
+    public int getEspacioUsuarioDisponible() {
+        return tamanoMemoria - limiteKernelUsuario;
+    }
+
+    public boolean cabeProgramaDeUsuario(int cantidadPosiciones) {
+        return cantidadPosiciones <= getEspacioUsuarioDisponible();
+    }
+    
     /*GETTERS*/
     public int getTamanoMemoria() {
         return tamanoMemoria;
