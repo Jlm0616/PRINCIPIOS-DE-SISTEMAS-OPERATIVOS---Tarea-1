@@ -25,7 +25,7 @@ public class VentanaPrincipal extends JFrame {
 
     private JLabel lblPC, lblIR, lblAC, lblAX, lblBX, lblCX, lblDX, lblEstado;
     private JLabel lblInfo;
-    private JButton btnCargar, btnEjecutar, btnPaso, btnLimpiar, btnEstadisticas;
+    private JButton btnCargar, btnEjecutar, btnPaso, btnLimpiar, btnEstadisticas, btnAjustarMemoria ;
     private JProgressBar progressBar;
     
     private int filaActual = -1;
@@ -142,20 +142,46 @@ public class VentanaPrincipal extends JFrame {
         btnPaso = crearBoton("Paso a paso", COLOR_WARNING, buttonSize);
         btnLimpiar = crearBoton("Limpiar", COLOR_DANGER, buttonSize);
         btnEstadisticas = crearBoton("Estadisticas", COLOR_SECONDARY, buttonSize);
+        btnAjustarMemoria = crearBoton("Ajustar memoria", COLOR_SECONDARY, buttonSize);
 
         panel.add(btnCargar);
         panel.add(btnEjecutar);
         panel.add(btnPaso);
         panel.add(btnLimpiar);
         panel.add(btnEstadisticas);
+        panel.add(btnAjustarMemoria);
 
         btnCargar.addActionListener(e -> cargarArchivo());
         btnEjecutar.addActionListener(e -> ejecutarTodo());
         btnPaso.addActionListener(e -> ejecutarPaso());
         btnLimpiar.addActionListener(e -> limpiar());
         btnEstadisticas.addActionListener(e -> mostrarEstadisticas());
+        btnAjustarMemoria.addActionListener(e -> abrirVentanaConfiguracion());
 
         return panel;
+    }
+    
+    private void abrirVentanaConfiguracion() {
+        VentanaConfiguracionMemoria dialogo = new VentanaConfiguracionMemoria(
+                this, memoria.getTamanoMemoria(), memoria.getLimiteKernelUsuario());
+        dialogo.setVisible(true);
+
+        if (dialogo.isConfirmado()) {
+            memoria = new Memoria(dialogo.getTamanoMemoria(), dialogo.getLimiteKernel());
+            cpu = new CPU(dialogo.getLimiteKernel());
+            ejecutor = new EjecutorCPU(cpu, memoria);
+            instrucciones = null;
+            instruccionesEjecutadas = 0;
+            filaActual = -1;
+            modeloInstrucciones.setRowCount(0);
+            modeloMemoria.setRowCount(0);
+            actualizarRegistros();
+            progressBar.setValue(0);
+            progressBar.setString("0%");
+            actualizarMensajeEstado("Memoria configurada: " + memoria.getTamanoMemoria()
+                    + " posiciones, Kernel 0-" + (memoria.getLimiteKernelUsuario() - 1)
+                    + ", Usuario " + memoria.getLimiteKernelUsuario() + "-" + (memoria.getTamanoMemoria() - 1));
+        }
     }
 
     private JButton crearBoton(String texto, Color color, Dimension size) {
@@ -410,6 +436,14 @@ public class VentanaPrincipal extends JFrame {
 
             try {
                 Ensamblador ensamblador = new Ensamblador();
+                
+                if (!ensamblador.esArchivoValido(archivo)) {
+                    JOptionPane.showMessageDialog(this,
+                            "El archivo no es valido:\n" + ensamblador.getPrimerErrorEncontrado(),
+                            "Archivo invalido", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                
                 instrucciones = ensamblador.leerArchivo(archivo);
 
                 if (instrucciones.isEmpty()) {

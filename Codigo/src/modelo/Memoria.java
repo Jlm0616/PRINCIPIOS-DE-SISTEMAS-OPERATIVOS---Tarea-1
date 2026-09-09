@@ -4,10 +4,11 @@ public class Memoria {
     private int tamanoMemoria;
     private int limiteKernelUsuario;
     private String[] arregloMemoria;
+    public static final int TAMANO_MINIMO = 128;
     
     public Memoria(int tamanoMemoria, int limiteKernelUsuario) {
-        if (tamanoMemoria < 128) {
-            throw new IllegalArgumentException("Tamaño de memoria menor a 128");
+        if (tamanoMemoria < TAMANO_MINIMO) {
+            throw new IllegalArgumentException("Tamaño de memoria menor a " + TAMANO_MINIMO);
         }
         this.tamanoMemoria = tamanoMemoria;
         this.limiteKernelUsuario = limiteKernelUsuario;
