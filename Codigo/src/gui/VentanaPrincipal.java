@@ -61,35 +61,41 @@ public class VentanaPrincipal extends JFrame {
     private JButton btnCargar, btnModo, btnAccion, btnLimpiar, btnEstadisticas, btnAjustarMemoria;
     private JProgressBar progressBar;
 
+    // NUEVO: referencia al panel de estadisticas para forzar repintado
+    private JPanel panelEstadisticas;
+
     private int filaActual = -1;
     private boolean modoPasoAPaso = false;
+    private int tamanoMemoriaActual = 256;
+    private int limiteKernelActual = 64;
 
-    private static final Color COLOR_BACKGROUND = new Color(236, 240, 241);  // fondo general de la ventana
-    private static final Color COLOR_PANEL = new Color(255, 255, 255);       // fondo de paneles
-    private static final Color COLOR_TEXT = new Color(44, 62, 80);           // color de texto general
-    private static final Color COLOR_ROW_ALT = new Color(245, 247, 250);     // filas alternadas de tablas
-    private static final Color COLOR_SUCCESS = new Color(46, 204, 113);      // usado tambien en barra de progreso y estado "TERMINADO"
-    private static final Color COLOR_WARNING = new Color(230, 170, 20);      // usado tambien para resaltar la fila actual en "paso a paso" y estado "EJECUTANDO"
-    private static final Color COLOR_PRIMARY = new Color(41, 128, 185);   // ya no se usa, GEMA_ESPACIO la reemplaza
+
+    private static final Color COLOR_BACKGROUND = new Color(236, 240, 241);
+    private static final Color COLOR_PANEL = new Color(255, 255, 255);
+    private static final Color COLOR_TEXT = new Color(44, 62, 80);
+    private static final Color COLOR_ROW_ALT = new Color(245, 247, 250);
+    private static final Color COLOR_SUCCESS = new Color(46, 204, 113);
+    private static final Color COLOR_WARNING = new Color(230, 170, 20);
+    private static final Color COLOR_PRIMARY = new Color(41, 128, 185);
     private static final Color COLOR_SECONDARY = new Color(52, 73, 94);
-    private static final Color COLOR_DANGER = new Color(231, 76, 60); 
-    private static final Color COLOR_PURPLE = new Color(142, 68, 173); 
-    
-    private static final Color GEMA_ESPACIO = new Color(52, 118, 168);    // Azul mas suave
-    private static final Color GEMA_MENTE = new Color(217, 172, 51);      // Amarillo mas calido, menos brillante
-    private static final Color GEMA_REALIDAD = new Color(178, 58, 58);    // Rojo mas apagado
-    private static final Color GEMA_PODER = new Color(122, 78, 145);      // Morado mas suave
-    private static final Color GEMA_TIEMPO = new Color(69, 145, 94);      // Verde mas apagado
-    private static final Color GEMA_ALMA = new Color(204, 122, 61);       // Naranja mas terroso
-    private static final Color COLOR_DORADO = new Color(150, 113, 23);   // Bronce dorado - muy oscuro, serio
+    private static final Color COLOR_DANGER = new Color(231, 76, 60);
+    private static final Color COLOR_PURPLE = new Color(142, 68, 173);
 
+    private static final Color GEMA_ESPACIO = new Color(52, 118, 168);
+    private static final Color GEMA_MENTE = new Color(217, 172, 51);
+    private static final Color GEMA_REALIDAD = new Color(178, 58, 58);
+    private static final Color GEMA_PODER = new Color(122, 78, 145);
+    private static final Color GEMA_TIEMPO = new Color(69, 145, 94);
+    private static final Color GEMA_ALMA = new Color(204, 122, 61);
+    private static final Color COLOR_DORADO = new Color(150, 113, 23);
+    
     public VentanaPrincipal() {
         super("Tarea 1 - Mini PC - Simulador de CPU");
         aplicarLookAndFeel();
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1150, 720);
         setLocationRelativeTo(null);
-        setMinimumSize(new Dimension(950, 620));
+        setMinimumSize(new Dimension(1400, 620));
 
         inicializarComponentes();
         inicializarSistema();
@@ -109,8 +115,8 @@ public class VentanaPrincipal extends JFrame {
     }
 
     private void inicializarSistema() {
-        memoria = new Memoria(256, 64);
-        cpu = new CPU(64);
+        memoria = new Memoria(tamanoMemoriaActual, limiteKernelActual);
+        cpu = new CPU(limiteKernelActual);
         ejecutor = new EjecutorCPU(cpu, memoria);
         actualizarRegistros();
     }
@@ -211,8 +217,12 @@ public class VentanaPrincipal extends JFrame {
         dialogo.setVisible(true);
 
         if (dialogo.isConfirmado()) {
-            memoria = new Memoria(dialogo.getTamanoMemoria(), dialogo.getLimiteKernel());
-            cpu = new CPU(dialogo.getLimiteKernel());
+            // NUEVO: guardar los valores configurados
+            tamanoMemoriaActual = dialogo.getTamanoMemoria();
+            limiteKernelActual = dialogo.getLimiteKernel();
+
+            memoria = new Memoria(tamanoMemoriaActual, limiteKernelActual);
+            cpu = new CPU(limiteKernelActual);
             ejecutor = new EjecutorCPU(cpu, memoria);
             instrucciones = null;
             instruccionesEjecutadas = 0;
@@ -222,9 +232,9 @@ public class VentanaPrincipal extends JFrame {
             actualizarRegistros();
             progressBar.setValue(0);
             progressBar.setString("0%");
-            actualizarMensajeEstado("Memoria configurada: " + memoria.getTamanoMemoria()
-                    + " posiciones, Kernel 0-" + (memoria.getLimiteKernelUsuario() - 1)
-                    + ", Usuario " + memoria.getLimiteKernelUsuario() + "-" + (memoria.getTamanoMemoria() - 1));
+            actualizarMensajeEstado("Memoria configurada: " + tamanoMemoriaActual
+                    + " posiciones, Kernel 0-" + (limiteKernelActual - 1)
+                    + ", Usuario " + limiteKernelActual + "-" + (tamanoMemoriaActual - 1));
         }
     }
 
@@ -240,7 +250,6 @@ public class VentanaPrincipal extends JFrame {
         boton.setFocusPainted(false);
         boton.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
-        // Forzar que Nimbus use nuestro color en todos los estados del boton
         boton.putClientProperty("Nimbus.Overrides", createNimbusOverride(color));
         boton.putClientProperty("Nimbus.Overrides.InheritDefaults", false);
         boton.setBackground(color);
@@ -258,7 +267,7 @@ public class VentanaPrincipal extends JFrame {
     }
 
     private UIManager.LookAndFeelInfo createNimbusOverride(Color color) {
-        return null; // placeholder, ver alternativa mas simple abajo
+        return null;
     }
 
     private JPanel crearPanelCentral() {
@@ -292,7 +301,11 @@ public class VentanaPrincipal extends JFrame {
 
         JPanel panelRegistros = crearPanelRegistros();
         JScrollPane scrollRegistros = envolverConTitulo(panelRegistros, "CPU / BCP", GEMA_PODER);
-        scrollRegistros.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
+        scrollRegistros.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+
+        // NUEVO: limitar el tamano del scroll de registros para que no invada el panel sur
+        scrollRegistros.setPreferredSize(new Dimension(0, 400));
+        scrollRegistros.setMaximumSize(new Dimension(Integer.MAX_VALUE, 500));
 
         gbc.gridx = 0;
         gbc.gridy = 0;
@@ -373,18 +386,18 @@ public class VentanaPrincipal extends JFrame {
     private JPanel crearPanelRegistros() {
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBackground(Color.WHITE);
-        panel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+        panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
-        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.insets = new Insets(4, 5, 4, 5);
         gbc.weightx = 1;
 
-        gbc.gridwidth = 1;
         Font labelFont = new Font("Consolas", Font.BOLD, 14);
+        Font irFont = new Font("Consolas", Font.BOLD, 12);
 
         lblPC = crearLabelRegistro("PC:", "-", labelFont, GEMA_ESPACIO);
-        lblIR = crearLabelRegistro("IR:", "-", labelFont, GEMA_REALIDAD);
+        lblIR = crearLabelRegistro("IR:", "-", irFont, GEMA_REALIDAD);
         lblAC = crearLabelRegistro("AC:", "-", labelFont, COLOR_SUCCESS);
         lblAX = crearLabelRegistro("AX:", "-", labelFont, COLOR_WARNING.darker());
         lblBX = crearLabelRegistro("BX:", "-", labelFont, new Color(52, 152, 219));
@@ -392,30 +405,30 @@ public class VentanaPrincipal extends JFrame {
         lblDX = crearLabelRegistro("DX:", "-", labelFont, new Color(230, 126, 34));
 
         int y = 0;
-        gbc.gridy = y++;
-        gbc.gridx = 0; panel.add(lblPC, gbc);
-        gbc.gridx = 1; panel.add(lblIR, gbc);
 
         gbc.gridy = y++;
-        gbc.gridx = 0; panel.add(lblAC, gbc);
-        gbc.gridx = 1; panel.add(lblAX, gbc);
+        gbc.gridx = 0; gbc.gridwidth = 1; panel.add(lblPC, gbc);
+        gbc.gridx = 1; panel.add(lblAC, gbc);
 
         gbc.gridy = y++;
-        gbc.gridx = 0; panel.add(lblBX, gbc);
-        gbc.gridx = 1; panel.add(lblCX, gbc);
+        gbc.gridx = 0; gbc.gridwidth = 2; panel.add(lblIR, gbc);
 
         gbc.gridy = y++;
-        gbc.gridx = 0; panel.add(lblDX, gbc);
+        gbc.gridx = 0; gbc.gridwidth = 1; panel.add(lblAX, gbc);
+        gbc.gridx = 1; panel.add(lblBX, gbc);
 
         gbc.gridy = y++;
-        gbc.gridx = 0;
-        gbc.gridwidth = 2;
+        gbc.gridx = 0; panel.add(lblCX, gbc);
+        gbc.gridx = 1; panel.add(lblDX, gbc);
+
+        gbc.gridy = y++;
+        gbc.gridx = 0; gbc.gridwidth = 2;
         lblEstado = new JLabel("Estado: -", SwingConstants.CENTER);
         lblEstado.setFont(new Font("Segoe UI", Font.BOLD, 14));
         lblEstado.setForeground(COLOR_TEXT);
         lblEstado.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(GEMA_PODER, 1),
-                BorderFactory.createEmptyBorder(10, 10, 10, 10)
+                BorderFactory.createEmptyBorder(8, 10, 8, 10)
         ));
         lblEstado.setOpaque(true);
         lblEstado.setBackground(new Color(245, 245, 245));
@@ -443,9 +456,9 @@ public class VentanaPrincipal extends JFrame {
     }
 
     private JPanel crearPanelEstadisticas() {
-        JPanel panel = new JPanel(new BorderLayout(10, 0));
-        panel.setBackground(COLOR_PANEL);
-        panel.setBorder(BorderFactory.createCompoundBorder(
+        panelEstadisticas = new JPanel(new BorderLayout(10, 0));
+        panelEstadisticas.setBackground(COLOR_PANEL);
+        panelEstadisticas.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(2, 0, 0, 0, COLOR_SECONDARY),
                 new EmptyBorder(10, 15, 10, 15)
         ));
@@ -456,15 +469,18 @@ public class VentanaPrincipal extends JFrame {
         progressBar.setBackground(new Color(236, 240, 241));
         progressBar.setFont(new Font("Segoe UI", Font.BOLD, 12));
         progressBar.setPreferredSize(new Dimension(0, 26));
+        progressBar.setOpaque(true);
 
         lblInfo = new JLabel("Listo para cargar un programa...");
         lblInfo.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         lblInfo.setForeground(COLOR_TEXT);
+        lblInfo.setOpaque(true);
+        lblInfo.setBackground(COLOR_PANEL);
 
-        panel.add(lblInfo, BorderLayout.WEST);
-        panel.add(progressBar, BorderLayout.CENTER);
+        panelEstadisticas.add(lblInfo, BorderLayout.WEST);
+        panelEstadisticas.add(progressBar, BorderLayout.CENTER);
 
-        return panel;
+        return panelEstadisticas;
     }
 
     private void cargarArchivo() {
@@ -501,23 +517,28 @@ public class VentanaPrincipal extends JFrame {
                     return;
                 }
 
-                instrucciones = ensamblador.leerArchivo(archivo);
+                // Leer en variable LOCAL, no asignar a 'instrucciones' todavia
+                List<Instruccion> nuevasInstrucciones = ensamblador.leerArchivo(archivo);
 
-                if (instrucciones.isEmpty()) {
+                if (nuevasInstrucciones.isEmpty()) {
                     JOptionPane.showMessageDialog(this,
                             "El archivo esta vacio o no se pudo leer.\nAsegurate de que tenga instrucciones validas.",
                             "Archivo vacio", JOptionPane.WARNING_MESSAGE);
                     return;
                 }
 
-                if (!memoria.cabeProgramaDeUsuario(instrucciones.size() * 2)) {
+                if (!memoria.cabeProgramaDeUsuario(nuevasInstrucciones.size() * 2)) {
                     JOptionPane.showMessageDialog(this,
                             "El programa no cabe en la memoria disponible.\n"
-                            + "Tamano del programa: " + (instrucciones.size() * 2) + " bytes\n"
-                            + "Memoria disponible: " + memoria.getEspacioUsuarioDisponible() + " bytes",
+                            + "Tamano del programa: " + (nuevasInstrucciones.size() * 2) + " bytes\n"
+                            + "Memoria disponible: " + memoria.getEspacioUsuarioDisponible() + " bytes\n\n"
+                            + "Usa 'Ajustar memoria' para ampliarla, o presiona 'Limpiar' si ya hay un programa cargado.",
                             "Error", JOptionPane.ERROR_MESSAGE);
-                    return;
+                    return;   // 'instrucciones' sigue siendo null, todo consistente
                 }
+
+                // TODO VALIDADO: ahora si asignamos
+                instrucciones = nuevasInstrucciones;
 
                 CargarMemoria cargador = new CargarMemoria();
                 cargador.cargar(instrucciones, memoria);
@@ -527,10 +548,13 @@ public class VentanaPrincipal extends JFrame {
                 llenarTablaMemoria();
                 actualizarRegistros();
                 actualizarBarraProgreso();
-                actualizarMensajeEstado("Programa cargado: " + instrucciones.size() + " instrucciones desde " + archivo.getName());
+                actualizarMensajeEstado("Programa cargado: " + instrucciones.size()
+                        + " instrucciones desde " + archivo.getName());
                 btnAjustarMemoria.setEnabled(false);
 
             } catch (Exception e) {
+                // Si algo falla, dejamos todo como estaba
+                instrucciones = null;
                 JOptionPane.showMessageDialog(this,
                         "Error al leer el archivo:\n" + e.getMessage(),
                         "Error", JOptionPane.ERROR_MESSAGE);
@@ -597,6 +621,10 @@ public class VentanaPrincipal extends JFrame {
         } else {
             actualizarMensajeEstado("Ejecutando instruccion " + instruccionesEjecutadas + "/" + instrucciones.size());
         }
+
+        // Forzar repintado general
+        revalidate();
+        repaint();
     }
 
     private void ejecutarProgramaCompleto() {
@@ -614,11 +642,16 @@ public class VentanaPrincipal extends JFrame {
         actualizarRegistros();
         actualizarMensajeEstado("Programa completado!");
         progressBar.setForeground(COLOR_SUCCESS);
+
+        // Forzar repintado general al terminar
+        revalidate();
+        repaint();
     }
 
     private void actualizarRegistros() {
         lblPC.setText("PC: " + cpu.getPC());
-        lblIR.setText("IR: " + cpu.getIR());
+        String irBinario = String.format("%16s", Integer.toBinaryString(cpu.getIR())).replace(' ', '0');
+        lblIR.setText("IR: " + irBinario);
         lblAC.setText("AC: " + cpu.getAC());
         lblAX.setText("AX: " + cpu.getAX());
         lblBX.setText("BX: " + cpu.getBX());
@@ -644,16 +677,22 @@ public class VentanaPrincipal extends JFrame {
             int progreso = (instruccionesEjecutadas * 100) / instrucciones.size();
             progressBar.setValue(progreso);
             progressBar.setString(progreso + "%");
+            if (panelEstadisticas != null) {
+                panelEstadisticas.repaint();
+            }
         }
     }
 
     private void actualizarMensajeEstado(String mensaje) {
         lblInfo.setText(mensaje);
+        if (panelEstadisticas != null) {
+            panelEstadisticas.repaint();
+        }
     }
 
     private void limpiar() {
-        memoria = new Memoria(256, 64);
-        cpu = new CPU(64);
+        memoria = new Memoria(tamanoMemoriaActual, limiteKernelActual);
+        cpu = new CPU(limiteKernelActual);
         ejecutor = new EjecutorCPU(cpu, memoria);
         instrucciones = null;
         instruccionesEjecutadas = 0;
@@ -664,11 +703,15 @@ public class VentanaPrincipal extends JFrame {
         progressBar.setValue(0);
         progressBar.setString("0%");
         progressBar.setForeground(COLOR_SUCCESS);
-        actualizarMensajeEstado("Sistema limpiado");
+        actualizarMensajeEstado("Sistema limpiado (memoria: " + tamanoMemoriaActual
+                + " posiciones, kernel 0-" + (limiteKernelActual - 1) + ")");
         btnAjustarMemoria.setEnabled(true);
         modoPasoAPaso = false;
         btnModo.setText("Modo: Automatico");
         btnAccion.setText("Ejecutar");
+
+        revalidate();
+        repaint();
     }
 
     private void mostrarEstadisticas() {
