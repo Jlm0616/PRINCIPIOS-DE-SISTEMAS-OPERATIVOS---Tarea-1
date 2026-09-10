@@ -26,10 +26,6 @@ public class Memoria {
     public boolean esZonaKernel(int posicion) {
         return posicion < limiteKernelUsuario;
     }
-    
-    public int getEspacioUsuarioDisponible() {
-        return tamanoMemoria - limiteKernelUsuario;
-    }
 
     public boolean cabeProgramaDeUsuario(int cantidadPosiciones) {
         return cantidadPosiciones <= getEspacioUsuarioDisponible();
@@ -47,4 +43,9 @@ public class Memoria {
     public String[] getArregloMemoria() {
         return arregloMemoria;
     }
+    
+    public int getEspacioUsuarioDisponible() {
+        return tamanoMemoria - limiteKernelUsuario;
+    }
+
 }

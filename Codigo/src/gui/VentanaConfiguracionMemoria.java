@@ -18,6 +18,8 @@ import java.awt.Insets;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Frame;
+import javax.swing.event.DocumentListener;
+import javax.swing.event.DocumentEvent;
 
 /**
  * Ventana modal cuya unica responsabilidad es pedir al usuario
@@ -35,6 +37,8 @@ public class VentanaConfiguracionMemoria extends JDialog {
     private int tamanoMemoria;
     private int limiteKernel;
     private boolean confirmado;
+    private boolean limiteEditadoManualmente = false;
+    private boolean actualizandoAutomaticamente = false;
 
     public VentanaConfiguracionMemoria(Frame propietario, int tamanoActual, int limiteActual) {
         super(propietario, "Configurar memoria", true);
@@ -112,8 +116,46 @@ public class VentanaConfiguracionMemoria extends JDialog {
         setLayout(new BorderLayout());
         add(panelFormulario, BorderLayout.CENTER);
         add(panelBotones, BorderLayout.SOUTH);
+        
+        txtTamanoMemoria.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) { sugerirLimite(); }
+            @Override
+            public void removeUpdate(DocumentEvent e) { sugerirLimite(); }
+            @Override
+            public void changedUpdate(DocumentEvent e) { sugerirLimite(); }
+        });
+
+        txtLimiteKernel.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) { limiteEditadoManualmente = true; }
+            @Override
+            public void removeUpdate(DocumentEvent e) { limiteEditadoManualmente = true; }
+            @Override
+            public void changedUpdate(DocumentEvent e) { limiteEditadoManualmente = true; }
+                
+            private void marcarComoManual() {
+                if (!actualizandoAutomaticamente) {
+                limiteEditadoManualmente = true;
+            }
+    }
+        });
     }
 
+    private void sugerirLimite() {
+        if (limiteEditadoManualmente) {
+            return;
+        }
+        try {
+            int tamano = Integer.parseInt(txtTamanoMemoria.getText().trim());
+            int sugerido = (int) Math.ceil(tamano * 0.20);
+            txtLimiteKernel.setText(String.valueOf(sugerido));
+            limiteEditadoManualmente = false; // el propio listener de arriba lo pondria en true, lo corregimos aqui
+        } catch (NumberFormatException e) {
+            // mientras el usuario escribe, el texto puede quedar incompleto momentaneamente; se ignora
+        }
+    }
+    
     private void validarYConfirmar() {
         int tamanoIngresado;
         int limiteIngresado;
