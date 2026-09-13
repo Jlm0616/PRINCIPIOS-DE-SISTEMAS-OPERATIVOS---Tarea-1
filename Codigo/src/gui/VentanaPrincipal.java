@@ -15,7 +15,6 @@ import javax.swing.JLabel;
 import javax.swing.JTable;
 import javax.swing.JScrollPane;
 import javax.swing.JProgressBar;
-import javax.swing.JSeparator;
 import javax.swing.JOptionPane;
 import javax.swing.JComponent;
 import javax.swing.BorderFactory;
@@ -43,13 +42,33 @@ import java.awt.FileDialog;
 import java.io.File;
 import java.util.List;
 
+/**
+ * Ventana principal del simulador Mini PC.
+ *
+ * Responsabilidades:
+ *   1. Construir y mostrar la interfaz gráfica completa.
+ *   2. Permitir cargar un archivo .asm y validarlo con {@link Ensamblador}.
+ *   3. Cargar las instrucciones en memoria con {@link CargarMemoria}.
+ *   4. Ejecutar el programa paso a paso o de forma automática
+ *      usando {@link EjecutorCPU}.
+ *   5. Mostrar el estado actual de la CPU, el BCP, la memoria
+ *      y el progreso de ejecución.
+ *
+ * La ventana también permite ajustar el tamaño de memoria y el límite
+ * Kernel/Usuario mediante {@link VentanaConfiguracionMemoria}, siempre
+ * que no haya un programa cargado.
+ */
 public class VentanaPrincipal extends JFrame {
 
-    private Memoria memoria;
-    private CPU cpu;
-    private EjecutorCPU ejecutor;
-    private List<Instruccion> instrucciones;
-    private int instruccionesEjecutadas = 0;
+    /* ==================== MODELO / ESTADO ==================== */
+
+    private Memoria memoria;                  // memoria actual del simulador
+    private CPU cpu;                          // CPU actual del simulador
+    private EjecutorCPU ejecutor;             // ejecutor asociado a la CPU y memoria
+    private List<Instruccion> instrucciones;  // programa cargado (null si no hay ninguno)
+    private int instruccionesEjecutadas = 0;  // contador de instrucciones ya ejecutadas
+
+    /* ==================== COMPONENTES DE UI ==================== */
 
     private JTable tablaInstrucciones;
     private DefaultTableModel modeloInstrucciones;
@@ -61,14 +80,22 @@ public class VentanaPrincipal extends JFrame {
     private JButton btnCargar, btnModo, btnAccion, btnLimpiar, btnEstadisticas, btnAjustarMemoria;
     private JProgressBar progressBar;
 
-    // NUEVO: referencia al panel de estadisticas para forzar repintado
-    private JPanel panelEstadisticas;
+    private JPanel panelEstadisticas;  // referencia para forzar repintado
 
-    private int filaActual = -1;
-    private boolean modoPasoAPaso = false;
-    private int tamanoMemoriaActual = 256;
-    private int limiteKernelActual = 64;
+    /* ==================== ESTADO DE LA INTERACCIÓN ==================== */
 
+    private int filaActual = -1;                    // fila resaltada en la tabla (-1 = ninguna)
+    private boolean modoPasoAPaso = false;          // false = automático, true = paso a paso
+    private int tamanoMemoriaActual = 256;          // tamaño actual de memoria configurado
+    private int limiteKernelActual = 64;            // límite Kernel/Usuario configurado
+
+    /* ==================== CONSTANTES ==================== */
+
+    private static final int POSICIONES_POR_INSTRUCCION = 2;  // cada instrucción ocupa 2 posiciones
+    private static final int ANCHO_MINIMO_VENTANA = 1400;     // ancho mínimo razonable
+    private static final int ALTO_MINIMO_VENTANA = 620;       // alto mínimo razonable
+
+    /* ==================== PALETA DE COLORES ==================== */
 
     private static final Color COLOR_BACKGROUND = new Color(236, 240, 241);
     private static final Color COLOR_PANEL = new Color(255, 255, 255);
@@ -78,29 +105,37 @@ public class VentanaPrincipal extends JFrame {
     private static final Color COLOR_WARNING = new Color(230, 170, 20);
     private static final Color COLOR_PRIMARY = new Color(41, 128, 185);
     private static final Color COLOR_SECONDARY = new Color(52, 73, 94);
-    private static final Color COLOR_DANGER = new Color(231, 76, 60);
-    private static final Color COLOR_PURPLE = new Color(142, 68, 173);
 
+    /* Colores temáticos por sección (estilo "gemas") */
     private static final Color GEMA_ESPACIO = new Color(52, 118, 168);
     private static final Color GEMA_MENTE = new Color(217, 172, 51);
     private static final Color GEMA_REALIDAD = new Color(178, 58, 58);
     private static final Color GEMA_PODER = new Color(122, 78, 145);
     private static final Color GEMA_TIEMPO = new Color(69, 145, 94);
     private static final Color GEMA_ALMA = new Color(204, 122, 61);
-    private static final Color COLOR_DORADO = new Color(150, 113, 23);
-    
+
+    /**
+     * Crea la ventana principal, aplica el Look & Feel, construye
+     * la interfaz e inicializa el sistema (memoria y CPU por defecto).
+     */
     public VentanaPrincipal() {
         super("Tarea 1 - Mini PC - Simulador de CPU");
         aplicarLookAndFeel();
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1150, 720);
+        setMinimumSize(new Dimension(ANCHO_MINIMO_VENTANA, ALTO_MINIMO_VENTANA));
         setLocationRelativeTo(null);
-        setMinimumSize(new Dimension(1400, 620));
 
         inicializarComponentes();
         inicializarSistema();
     }
 
+    /**
+     * Intenta aplicar el Look & Feel "Nimbus".
+     *
+     * Si no está disponible, se mantiene el Look & Feel por defecto
+     * sin lanzar error.
+     */
     private void aplicarLookAndFeel() {
         try {
             for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {
@@ -114,6 +149,9 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
+    /**
+     * Inicializa la memoria, la CPU y el ejecutor con la configuración actual.
+     */
     private void inicializarSistema() {
         memoria = new Memoria(tamanoMemoriaActual, limiteKernelActual);
         cpu = new CPU(limiteKernelActual);
@@ -121,6 +159,10 @@ public class VentanaPrincipal extends JFrame {
         actualizarRegistros();
     }
 
+    /**
+     * Construye y organiza los paneles principales de la ventana:
+     * encabezado, panel central (tablas y registros) y panel de estadísticas.
+     */
     private void inicializarComponentes() {
         JPanel mainPanel = new JPanel(new BorderLayout(15, 15));
         mainPanel.setBackground(COLOR_BACKGROUND);
@@ -133,6 +175,11 @@ public class VentanaPrincipal extends JFrame {
         mainPanel.add(crearPanelEstadisticas(), BorderLayout.SOUTH);
     }
 
+    /**
+     * Crea el encabezado de la ventana (título + barra de botones).
+     *
+     * @return el panel de encabezado completo
+     */
     private JPanel crearPanelEncabezado() {
         JPanel titulo = new JPanel(new BorderLayout());
         titulo.setBackground(COLOR_SECONDARY);
@@ -150,6 +197,11 @@ public class VentanaPrincipal extends JFrame {
         return encabezado;
     }
 
+    /**
+     * Crea la barra de botones de acción y registra sus listeners.
+     *
+     * @return el panel con los seis botones principales
+     */
     private JPanel crearPanelBotones() {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 12));
         panel.setBackground(COLOR_PANEL);
@@ -160,12 +212,12 @@ public class VentanaPrincipal extends JFrame {
 
         Dimension buttonSize = new Dimension(150, 38);
 
-        btnCargar = crearBoton("Cargar archivo", GEMA_ESPACIO, buttonSize);
-        btnModo = crearBoton("Modo: Automatico", GEMA_PODER, buttonSize);
-        btnAccion = crearBoton("Ejecutar", GEMA_TIEMPO, buttonSize);
-        btnLimpiar = crearBoton("Limpiar", GEMA_REALIDAD, buttonSize);
-        btnEstadisticas = crearBoton("Estadisticas", GEMA_MENTE, buttonSize);
-        btnAjustarMemoria = crearBoton("Ajustar memoria", GEMA_ALMA, buttonSize);
+        btnCargar          = crearBoton("Cargar archivo", GEMA_ESPACIO, buttonSize);
+        btnModo            = crearBoton("Modo: Automatico", GEMA_PODER, buttonSize);
+        btnAccion          = crearBoton("Ejecutar", GEMA_TIEMPO, buttonSize);
+        btnLimpiar         = crearBoton("Limpiar", GEMA_REALIDAD, buttonSize);
+        btnEstadisticas    = crearBoton("Estadisticas", GEMA_MENTE, buttonSize);
+        btnAjustarMemoria  = crearBoton("Ajustar memoria", GEMA_ALMA, buttonSize);
 
         panel.add(btnCargar);
         panel.add(btnModo);
@@ -184,6 +236,12 @@ public class VentanaPrincipal extends JFrame {
         return panel;
     }
 
+    /**
+     * Alterna entre modo automático y paso a paso.
+     *
+     * Actualiza los textos de los botones "Modo" y "Acción" para reflejar
+     * el modo actual.
+     */
     private void alternarModo() {
         modoPasoAPaso = !modoPasoAPaso;
         if (modoPasoAPaso) {
@@ -195,6 +253,10 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
+    /**
+     * Ejecuta la acción del botón principal según el modo actual:
+     * un paso (modo paso a paso) o el programa completo (modo automático).
+     */
     private void ejecutarAccion() {
         if (modoPasoAPaso) {
             ejecutarUnPaso();
@@ -203,6 +265,13 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
+    /**
+     * Abre la ventana de configuración de memoria.
+     *
+     * Solo se permite si no hay un programa cargado (instrucciones == null).
+     * Si el usuario confirma, se reconstruyen memoria, CPU y ejecutor
+     * con los nuevos valores.
+     */
     private void abrirVentanaConfiguracion() {
         if (instrucciones != null) {
             JOptionPane.showMessageDialog(this,
@@ -217,7 +286,6 @@ public class VentanaPrincipal extends JFrame {
         dialogo.setVisible(true);
 
         if (dialogo.isConfirmado()) {
-            // NUEVO: guardar los valores configurados
             tamanoMemoriaActual = dialogo.getTamanoMemoria();
             limiteKernelActual = dialogo.getLimiteKernel();
 
@@ -238,6 +306,17 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
+    /**
+     * Crea un botón estilizado con color de fondo y tamaño fijos.
+     *
+     * El color del texto se ajusta automáticamente (negro o blanco)
+     * según la luminosidad del fondo para garantizar contraste.
+     *
+     * @param texto texto del botón
+     * @param color color de fondo (y base para el efecto hover)
+     * @param size  tamaño preferido del botón
+     * @return el botón configurado
+     */
     private JButton crearBoton(String texto, Color color, Dimension size) {
         JButton boton = new JButton(texto);
         boton.setPreferredSize(size);
@@ -250,9 +329,12 @@ public class VentanaPrincipal extends JFrame {
         boton.setFocusPainted(false);
         boton.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
-        boton.putClientProperty("Nimbus.Overrides", createNimbusOverride(color));
-        boton.putClientProperty("Nimbus.Overrides.InheritDefaults", false);
+        // Fuerza el color de fondo sin que Nimbus interfiera
+        boton.setUI(new javax.swing.plaf.metal.MetalButtonUI());
         boton.setBackground(color);
+        boton.setOpaque(true);
+        boton.setContentAreaFilled(true);
+        boton.setBorderPainted(false);
 
         boton.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseEntered(java.awt.event.MouseEvent evt) {
@@ -266,10 +348,12 @@ public class VentanaPrincipal extends JFrame {
         return boton;
     }
 
-    private UIManager.LookAndFeelInfo createNimbusOverride(Color color) {
-        return null;
-    }
-
+    /**
+     * Crea el panel central con las tres secciones principales:
+     * programa cargado, memoria y registros de la CPU/BCP.
+     *
+     * @return el panel central armado
+     */
     private JPanel crearPanelCentral() {
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBackground(COLOR_BACKGROUND);
@@ -279,6 +363,7 @@ public class VentanaPrincipal extends JFrame {
         gbc.weighty = 1;
         gbc.insets = new Insets(8, 0, 0, 0);
 
+        // --- Tabla de instrucciones del programa ---
         modeloInstrucciones = new DefaultTableModel(new Object[]{"Instruccion", "Binario"}, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -289,6 +374,7 @@ public class VentanaPrincipal extends JFrame {
         JScrollPane scrollInstrucciones = envolverConTitulo(tablaInstrucciones, "Programa cargado", GEMA_ESPACIO);
         scrollInstrucciones.setPreferredSize(new Dimension(400, 0));
 
+        // --- Tabla de memoria (zona usuario) ---
         modeloMemoria = new DefaultTableModel(new Object[]{"Pos", "Valor"}, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -299,11 +385,12 @@ public class VentanaPrincipal extends JFrame {
         JScrollPane scrollMemoria = envolverConTitulo(tablaMemoria, "Memoria (zona usuario)", GEMA_REALIDAD);
         scrollMemoria.setPreferredSize(new Dimension(230, 0));
 
+        // --- Panel de registros de CPU y BCP ---
         JPanel panelRegistros = crearPanelRegistros();
         JScrollPane scrollRegistros = envolverConTitulo(panelRegistros, "CPU / BCP", GEMA_PODER);
         scrollRegistros.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
 
-        // NUEVO: limitar el tamano del scroll de registros para que no invada el panel sur
+        // Limitamos la altura del panel de registros para que no invada el panel sur
         scrollRegistros.setPreferredSize(new Dimension(0, 400));
         scrollRegistros.setMaximumSize(new Dimension(Integer.MAX_VALUE, 500));
 
@@ -323,6 +410,14 @@ public class VentanaPrincipal extends JFrame {
         return panel;
     }
 
+    /**
+     * Crea una tabla estilizada con encabezado coloreado, filas alternas
+     * y resaltado de la fila actual en la tabla de instrucciones.
+     *
+     * @param modelo      modelo de datos de la tabla
+     * @param colorHeader color del encabezado y de selección
+     * @return la tabla configurada
+     */
     private JTable crearTablaEstilizada(DefaultTableModel modelo, Color colorHeader) {
         JTable tabla = new JTable(modelo);
         tabla.setRowHeight(26);
@@ -334,6 +429,7 @@ public class VentanaPrincipal extends JFrame {
         tabla.setSelectionForeground(Color.WHITE);
         tabla.setFillsViewportHeight(true);
 
+        // Encabezado personalizado
         tabla.getTableHeader().setPreferredSize(new Dimension(0, 32));
         tabla.getTableHeader().setDefaultRenderer(new DefaultTableCellRenderer() {
             @Override
@@ -350,6 +446,7 @@ public class VentanaPrincipal extends JFrame {
             }
         });
 
+        // Renderer de celdas: filas alternas + resaltado de la fila actual
         tabla.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
@@ -370,6 +467,14 @@ public class VentanaPrincipal extends JFrame {
         return tabla;
     }
 
+    /**
+     * Envuelve un componente en un JScrollPane con borde titulado.
+     *
+     * @param componente componente a envolver
+     * @param titulo     título del borde
+     * @param color      color del borde y del título
+     * @return el JScrollPane configurado
+     */
     private JScrollPane envolverConTitulo(JComponent componente, String titulo, Color color) {
         JScrollPane scroll = new JScrollPane(componente);
         scroll.setBorder(BorderFactory.createTitledBorder(
@@ -383,6 +488,13 @@ public class VentanaPrincipal extends JFrame {
         return scroll;
     }
 
+    /**
+     * Crea el panel de registros de la CPU y del BCP.
+     *
+     * Muestra PC, IR, AC, AX, BX, CX, DX y el estado del proceso.
+     *
+     * @return el panel con las etiquetas de registros
+     */
     private JPanel crearPanelRegistros() {
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBackground(Color.WHITE);
@@ -396,13 +508,13 @@ public class VentanaPrincipal extends JFrame {
         Font labelFont = new Font("Consolas", Font.BOLD, 14);
         Font irFont = new Font("Consolas", Font.BOLD, 12);
 
-        lblPC = crearLabelRegistro("PC:", "-", labelFont, GEMA_ESPACIO);
-        lblIR = crearLabelRegistro("IR:", "-", irFont, GEMA_REALIDAD);
-        lblAC = crearLabelRegistro("AC:", "-", labelFont, COLOR_SUCCESS);
-        lblAX = crearLabelRegistro("AX:", "-", labelFont, COLOR_WARNING.darker());
-        lblBX = crearLabelRegistro("BX:", "-", labelFont, new Color(52, 152, 219));
-        lblCX = crearLabelRegistro("CX:", "-", labelFont, GEMA_PODER);
-        lblDX = crearLabelRegistro("DX:", "-", labelFont, new Color(230, 126, 34));
+        lblPC  = crearLabelRegistro("PC:", "-", labelFont, GEMA_ESPACIO);
+        lblIR  = crearLabelRegistro("IR:", "-", irFont, GEMA_REALIDAD);
+        lblAC  = crearLabelRegistro("AC:", "-", labelFont, COLOR_SUCCESS);
+        lblAX  = crearLabelRegistro("AX:", "-", labelFont, COLOR_WARNING.darker());
+        lblBX  = crearLabelRegistro("BX:", "-", labelFont, new Color(52, 152, 219));
+        lblCX  = crearLabelRegistro("CX:", "-", labelFont, GEMA_PODER);
+        lblDX  = crearLabelRegistro("DX:", "-", labelFont, new Color(230, 126, 34));
 
         int y = 0;
 
@@ -421,6 +533,7 @@ public class VentanaPrincipal extends JFrame {
         gbc.gridx = 0; panel.add(lblCX, gbc);
         gbc.gridx = 1; panel.add(lblDX, gbc);
 
+        // Etiqueta de estado del proceso (BCP)
         gbc.gridy = y++;
         gbc.gridx = 0; gbc.gridwidth = 2;
         lblEstado = new JLabel("Estado: -", SwingConstants.CENTER);
@@ -442,6 +555,15 @@ public class VentanaPrincipal extends JFrame {
         return panel;
     }
 
+    /**
+     * Crea una etiqueta estilizada para un registro (PC, AC, AX, ...).
+     *
+     * @param nombre nombre del registro (con dos puntos, ej. "PC:")
+     * @param valor  valor inicial a mostrar
+     * @param font   fuente de la etiqueta
+     * @param color  color del texto y del borde
+     * @return la etiqueta configurada
+     */
     private JLabel crearLabelRegistro(String nombre, String valor, Font font, Color color) {
         JLabel label = new JLabel(nombre + " " + valor, SwingConstants.CENTER);
         label.setFont(font);
@@ -455,6 +577,12 @@ public class VentanaPrincipal extends JFrame {
         return label;
     }
 
+    /**
+     * Crea el panel inferior de estadísticas, con barra de progreso
+     * y etiqueta de mensaje de estado.
+     *
+     * @return el panel de estadísticas
+     */
     private JPanel crearPanelEstadisticas() {
         panelEstadisticas = new JPanel(new BorderLayout(10, 0));
         panelEstadisticas.setBackground(COLOR_PANEL);
@@ -483,13 +611,28 @@ public class VentanaPrincipal extends JFrame {
         return panelEstadisticas;
     }
 
+    /**
+     * Abre un diálogo para seleccionar un archivo .asm, lo valida,
+     * lo carga en memoria y actualiza la interfaz.
+     *
+     * Flujo:
+     *   1. Se muestra un FileDialog (filtro visual ".asm").
+     *   2. Se valida con {@link Ensamblador#esArchivoValido(File)}.
+     *   3. Se lee con {@link Ensamblador#leerArchivo(File)}.
+     *   4. Se verifica que el programa quepa en la memoria de usuario.
+     *   5. Se carga con {@link CargarMemoria#cargar(List, Memoria)}.
+     *   6. Se actualizan las tablas, registros y barra de progreso.
+     *
+     * Si cualquier paso falla, se muestra un mensaje y el estado previo
+     * del programa cargado se preserva.
+     */
     private void cargarArchivo() {
         FileDialog fileDialog = new FileDialog(this, "Seleccionar archivo ASM", FileDialog.LOAD);
         fileDialog.setSize(900, 650);
 
         Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
         fileDialog.setLocation((screenSize.width - 900) / 2, (screenSize.height - 650) / 2);
-        fileDialog.setFile("*.asm;*.ASM");
+        fileDialog.setFile("*.asm");   // solo un patrón: FileDialog de AWT no soporta varios
         fileDialog.setDirectory(System.getProperty("user.home"));
         fileDialog.setVisible(true);
 
@@ -499,6 +642,7 @@ public class VentanaPrincipal extends JFrame {
         if (archivoSeleccionado != null && directorio != null) {
             File archivo = new File(directorio, archivoSeleccionado);
 
+            // Verificación real de extensión (el filtro del FileDialog es solo visual)
             String nombre = archivo.getName().toLowerCase();
             if (!nombre.endsWith(".asm")) {
                 JOptionPane.showMessageDialog(this,
@@ -517,7 +661,7 @@ public class VentanaPrincipal extends JFrame {
                     return;
                 }
 
-                // Leer en variable LOCAL, no asignar a 'instrucciones' todavia
+                // Se lee en variable LOCAL: si algo falla, 'instrucciones' no se toca
                 List<Instruccion> nuevasInstrucciones = ensamblador.leerArchivo(archivo);
 
                 if (nuevasInstrucciones.isEmpty()) {
@@ -527,17 +671,18 @@ public class VentanaPrincipal extends JFrame {
                     return;
                 }
 
-                if (!memoria.cabeProgramaDeUsuario(nuevasInstrucciones.size() * 2)) {
+                int posicionesNecesarias = nuevasInstrucciones.size() * POSICIONES_POR_INSTRUCCION;
+                if (!memoria.cabeProgramaDeUsuario(posicionesNecesarias)) {
                     JOptionPane.showMessageDialog(this,
                             "El programa no cabe en la memoria disponible.\n"
-                            + "Tamano del programa: " + (nuevasInstrucciones.size() * 2) + " bytes\n"
-                            + "Memoria disponible: " + memoria.getEspacioUsuarioDisponible() + " bytes\n\n"
+                            + "Tamano del programa: " + posicionesNecesarias + " posiciones\n"
+                            + "Memoria disponible: " + memoria.getEspacioUsuarioDisponible() + " posiciones\n\n"
                             + "Usa 'Ajustar memoria' para ampliarla, o presiona 'Limpiar' si ya hay un programa cargado.",
                             "Error", JOptionPane.ERROR_MESSAGE);
-                    return;   // 'instrucciones' sigue siendo null, todo consistente
+                    return;
                 }
 
-                // TODO VALIDADO: ahora si asignamos
+                // Todo validado: ahora sí se asigna al campo
                 instrucciones = nuevasInstrucciones;
 
                 CargarMemoria cargador = new CargarMemoria();
@@ -552,16 +697,22 @@ public class VentanaPrincipal extends JFrame {
                         + " instrucciones desde " + archivo.getName());
                 btnAjustarMemoria.setEnabled(false);
 
-            } catch (Exception e) {
-                // Si algo falla, dejamos todo como estaba
+            } catch (NumberFormatException e) {
                 instrucciones = null;
-                JOptionPane.showMessageDialog(this,
-                        "Error al leer el archivo:\n" + e.getMessage(),
-                        "Error", JOptionPane.ERROR_MESSAGE);
+                mostrarError("Error de formato numerico al leer el archivo:\n" + e.getMessage());
+            } catch (RuntimeException e) {
+                instrucciones = null;
+                mostrarError("Error inesperado al leer el archivo:\n" + e.getMessage());
             }
         }
     }
 
+    /**
+     * Llena la tabla de instrucciones con el programa cargado.
+     *
+     * Muestra cada instrucción en formato ensamblador y su binario
+     * equivalente (opcode + registro + valor).
+     */
     private void llenarTablaInstrucciones() {
         modeloInstrucciones.setRowCount(0);
         Traductor traductor = new Traductor();
@@ -573,7 +724,7 @@ public class VentanaPrincipal extends JFrame {
                 texto = instr.getOpcode() + " " + instr.getRegistro();
             }
 
-            String primerByte = traductor.primerByte(instr);
+            String primerByte  = traductor.primerByte(instr);
             String segundoByte = traductor.valorEnsamblador(instr.getValor());
             String binario = primerByte.substring(0, 4) + " " + primerByte.substring(4, 8) + " " + segundoByte;
 
@@ -581,15 +732,26 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
+    /**
+     * Llena la tabla de memoria con las posiciones ocupadas por el programa
+     * en la zona de usuario.
+     */
     private void llenarTablaMemoria() {
         modeloMemoria.setRowCount(0);
         int inicio = memoria.getLimiteKernelUsuario();
-        int fin = inicio + instrucciones.size() * 2;
+        int fin = inicio + instrucciones.size() * POSICIONES_POR_INSTRUCCION;
         for (int i = inicio; i < fin; i++) {
             modeloMemoria.addRow(new Object[]{i, memoria.leer(i)});
         }
     }
 
+    /**
+     * Ejecuta una única instrucción (modo paso a paso).
+     *
+     * Resalta la fila correspondiente en la tabla, actualiza registros,
+     * barra de progreso y mensaje de estado. Si el programa termina,
+     * marca el BCP como "TERMINADO".
+     */
     private void ejecutarUnPaso() {
         if (instrucciones == null || instrucciones.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Primero carga un archivo .asm");
@@ -607,26 +769,26 @@ public class VentanaPrincipal extends JFrame {
         instruccionesEjecutadas++;
 
         if (instruccionesEjecutadas >= instrucciones.size()) {
-            ejecutor.getBcp().setEstado("TERMINADO");
-            filaActual = -1;
-        }
-
-        tablaInstrucciones.repaint();
-        actualizarRegistros();
-        actualizarBarraProgreso();
-
-        if (instruccionesEjecutadas >= instrucciones.size()) {
-            actualizarMensajeEstado("Programa completado!");
-            progressBar.setForeground(COLOR_SUCCESS);
+            finalizarEjecucion();
         } else {
-            actualizarMensajeEstado("Ejecutando instruccion " + instruccionesEjecutadas + "/" + instrucciones.size());
+            tablaInstrucciones.repaint();
+            actualizarRegistros();
+            actualizarBarraProgreso();
+            actualizarMensajeEstado("Ejecutando instruccion " + instruccionesEjecutadas
+                    + "/" + instrucciones.size());
         }
 
-        // Forzar repintado general
+        // Forzar repintado general (Swing no siempre lo hace solo)
         revalidate();
         repaint();
     }
 
+    /**
+     * Ejecuta el programa completo de una sola vez (modo automático).
+     *
+     * Al terminar, marca el BCP como "TERMINADO" y actualiza
+     * registros, barra y mensajes.
+     */
     private void ejecutarProgramaCompleto() {
         if (instrucciones == null || instrucciones.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Primero carga un archivo .asm");
@@ -636,31 +798,53 @@ public class VentanaPrincipal extends JFrame {
         while (instruccionesEjecutadas < instrucciones.size()) {
             ejecutor.ejecutarInstruccion();
             instruccionesEjecutadas++;
-            actualizarBarraProgreso();
         }
-        ejecutor.getBcp().setEstado("TERMINADO");
-        actualizarRegistros();
-        actualizarMensajeEstado("Programa completado!");
-        progressBar.setForeground(COLOR_SUCCESS);
+        finalizarEjecucion();
 
-        // Forzar repintado general al terminar
         revalidate();
         repaint();
     }
 
+    /**
+     * Acciones comunes al terminar la ejecución de un programa:
+     * marca el BCP como TERMINADO, limpia el resaltado y actualiza
+     * registros, barra y mensaje de estado.
+     */
+    private void finalizarEjecucion() {
+        ejecutor.getBcp().setEstado("TERMINADO");
+        filaActual = -1;
+        tablaInstrucciones.repaint();
+        actualizarRegistros();
+        actualizarBarraProgreso();
+        actualizarMensajeEstado("Programa completado!");
+        progressBar.setForeground(COLOR_SUCCESS);
+    }
+
+    /**
+     * Refresca las etiquetas de registros y del estado del BCP
+     * con los valores actuales de la CPU.
+     */
     private void actualizarRegistros() {
         lblPC.setText("PC: " + cpu.getPC());
+
+        // IR se muestra como binario de 16 bits (con ceros a la izquierda)
         String irBinario = String.format("%16s", Integer.toBinaryString(cpu.getIR())).replace(' ', '0');
         lblIR.setText("IR: " + irBinario);
+
         lblAC.setText("AC: " + cpu.getAC());
         lblAX.setText("AX: " + cpu.getAX());
         lblBX.setText("BX: " + cpu.getBX());
         lblCX.setText("CX: " + cpu.getCX());
         lblDX.setText("DX: " + cpu.getDX());
+
         lblEstado.setText("Estado: " + ejecutor.getBcp().getEstado());
         actualizarColorEstado();
     }
 
+    /**
+     * Cambia el color de fondo de la etiqueta de estado según
+     * el estado actual del BCP.
+     */
     private void actualizarColorEstado() {
         String estado = ejecutor.getBcp().getEstado();
         if ("TERMINADO".equals(estado)) {
@@ -672,6 +856,10 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
+    /**
+     * Actualiza la barra de progreso según la cantidad de instrucciones
+     * ya ejecutadas.
+     */
     private void actualizarBarraProgreso() {
         if (instrucciones != null && !instrucciones.isEmpty()) {
             int progreso = (instruccionesEjecutadas * 100) / instrucciones.size();
@@ -683,6 +871,11 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
+    /**
+     * Actualiza la etiqueta de mensaje de estado.
+     *
+     * @param mensaje texto a mostrar
+     */
     private void actualizarMensajeEstado(String mensaje) {
         lblInfo.setText(mensaje);
         if (panelEstadisticas != null) {
@@ -690,6 +883,22 @@ public class VentanaPrincipal extends JFrame {
         }
     }
 
+    /**
+     * Muestra un mensaje de error estándar en un JOptionPane.
+     *
+     * @param mensaje texto a mostrar
+     */
+    private void mostrarError(String mensaje) {
+        JOptionPane.showMessageDialog(this, mensaje, "Error", JOptionPane.ERROR_MESSAGE);
+    }
+
+    /**
+     * Reinicia el sistema completo: crea memoria, CPU y ejecutor nuevos,
+     * limpia las tablas, los registros y la barra de progreso.
+     *
+     * Vuelve también al modo automático y reactiva el botón de ajuste
+     * de memoria.
+     */
     private void limpiar() {
         memoria = new Memoria(tamanoMemoriaActual, limiteKernelActual);
         cpu = new CPU(limiteKernelActual);
@@ -714,6 +923,10 @@ public class VentanaPrincipal extends JFrame {
         repaint();
     }
 
+    /**
+     * Muestra un diálogo con las estadísticas actuales del programa:
+     * total de instrucciones, ejecutadas, restantes y estado del BCP.
+     */
     private void mostrarEstadisticas() {
         if (instrucciones == null) {
             JOptionPane.showMessageDialog(this, "No hay programa cargado.");
