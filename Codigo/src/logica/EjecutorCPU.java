@@ -8,16 +8,16 @@ import modelo.BCP;
  * Ejecutor del ciclo de instrucción de la CPU (fetch-decode-execute).
  *
  * Se encarga de:
- *   1. Leer dos posiciones de memoria a partir del PC (primer y segundo byte).
+ *   1. Leer UNA posición de memoria a partir del PC (16 bits).
  *   2. Decodificar el primer byte en opcode + registro (4 bits cada uno).
  *   3. Decodificar el segundo byte como valor numérico.
  *   4. Ejecutar la operación sobre los registros de la CPU.
- *   5. Avanzar el PC en 2 posiciones.
- *   6. Sincronizar el estado de la CPU con el BCP.
+ *   5. Avanzar el PC en 1 posición.
+ *   6. Sincronizar el estado de la CPU con el BCP (que vive en la RAM).
  *
- * Formato del primer byte (8 bits):
- *   [ bits 0-3 ] código de opcode
- *   [ bits 4-7 ] código de registro
+ * Formato de la instrucción completa (16 bits):
+ *   [ opcode (4) | registro (4) | signo (1) | magnitud (7) ]
+ *     bits 0-3     bits 4-7      bit 8      bits 9-15
  *
  * El segundo byte contiene el operando (valor o dirección) en binario.
  */
@@ -25,21 +25,24 @@ public class EjecutorCPU {
 
     private CPU cpu;              // CPU sobre la que se ejecutan las instrucciones
     private Memoria memoria;      // memoria de donde se leen las instrucciones
-    private BCP bcp;              // bloque de control del proceso en ejecución
+    private BCP bcp;              // BCP del proceso en ejecución (vive en la RAM)
     private Traductor traductor;  // decodifica bytes a opcode/registro/valor
 
     /**
      * Crea un ejecutor asociado a una CPU y una memoria.
      *
-     * Inicializa un BCP propio con id 1 y un Traductor por defecto.
+     * Inicializa un BCP con id 1, cuyas posiciones viven en la zona
+     * de Kernel de la memoria recibida. También crea un Traductor
+     * por defecto.
      *
      * @param cpu     CPU sobre la que se ejecutará
      * @param memoria memoria desde la que se leerán las instrucciones
+     *                y donde vivirá el BCP del proceso
      */
     public EjecutorCPU(CPU cpu, Memoria memoria) {
         this.cpu = cpu;
         this.memoria = memoria;
-        this.bcp = new BCP(1);
+        this.bcp = new BCP(memoria, 1);
         this.traductor = new Traductor();
     }
 
@@ -47,24 +50,29 @@ public class EjecutorCPU {
      * Ejecuta una instrucción completa (fetch-decode-execute).
      *
      * Pasos:
-     *   1. Lee los bytes en PC y PC+1 y los concatena como IR (binario).
-     *   2. Del primer byte extrae opcode (bits 0-3) y registro (bits 4-7).
-     *   3. Del segundo byte extrae el valor numérico.
-     *   4. Ejecuta la operación correspondiente.
-     *   5. Avanza el PC en 2 posiciones.
-     *   6. Copia el estado de la CPU al BCP y lo marca como "EJECUTANDO".
+     *   1. Lee UNA posición de memoria a partir del PC (16 bits).
+     *   2. La guarda en el IR.
+     *   3. Del primer byte extrae opcode (bits 0-3) y registro (bits 4-7).
+     *   4. Del segundo byte extrae el valor numérico.
+     *   5. Ejecuta la operación correspondiente.
+     *   6. Avanza el PC en 1 posición.
+     *   7. Copia el estado de la CPU al BCP (en RAM) y lo marca
+     *      como "EJECUTANDO".
      */
     public void ejecutarInstruccion() {
         int pc = cpu.getPC();
 
-        String primerByte  = memoria.leer(pc);
-        String segundoByte = memoria.leer(pc + 1);
+        // 1. Leer UNA posición: la instrucción completa (16 bits)
+        String instruccionCompleta = memoria.leer(pc);
 
-        // Se guarda la instrucción completa (16 bits) en IR
-        String instruccionCompleta = primerByte + segundoByte;
+        // 2. Guardar la instrucción completa en IR
         cpu.setIR(Integer.parseInt(instruccionCompleta, 2));
 
-        // Decodificación: primer byte = opcode (4 bits) + registro (4 bits)
+        // 3. Separar en dos bytes (opcode+registro | valor)
+        String primerByte  = instruccionCompleta.substring(0, 8);
+        String segundoByte = instruccionCompleta.substring(8, 16);
+
+        // 4. Decodificación: opcode (4 bits) + registro (4 bits)
         String codigoOpcode   = primerByte.substring(0, 4);
         String codigoRegistro = primerByte.substring(4, 8);
         int valor = traductor.decodificarValor(segundoByte);
@@ -72,18 +80,14 @@ public class EjecutorCPU {
         String opcode   = traductor.decodificarOpcode(codigoOpcode);
         String registro = traductor.decodificarRegistro(codigoRegistro);
 
+        // 5. Ejecutar la operación
         ejecutarOperacion(opcode, registro, valor);
 
-        cpu.setPC(pc + 2);   // cada instrucción ocupa 2 posiciones
+        // 6. Avanzar el PC en 1 posición
+        cpu.setPC(pc + 1);
 
-        /* -------- Sincronización con el BCP -------- */
-        bcp.setEstado("EJECUTANDO");
-        bcp.setPc(cpu.getPC());
-        bcp.setAc(cpu.getAC());
-        bcp.setAx(cpu.getAX());
-        bcp.setBx(cpu.getBX());
-        bcp.setCx(cpu.getCX());
-        bcp.setDx(cpu.getDX());
+        /* -------- Sincronización con el BCP (en RAM) -------- */
+        bcp.actualizarDesdeCPU(cpu, "EJECUTANDO");
     }
 
     /**

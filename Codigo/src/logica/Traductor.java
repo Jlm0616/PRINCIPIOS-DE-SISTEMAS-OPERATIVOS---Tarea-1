@@ -18,6 +18,9 @@ import java.util.HashMap;
  * Formato del SEGUNDO byte (8 bits): [ signo (1) | magnitud (7) ]
  *   - signo: 0 = positivo, 1 = negativo
  *   - magnitud: valor absoluto en binario
+ *
+ * Formato de la INSTRUCCIÓN COMPLETA (16 bits):
+ *   [ opcode (4) | registro (4) | signo (1) | magnitud (7) ]
  */
 public class Traductor {
 
@@ -88,6 +91,26 @@ public class Traductor {
         String codigo = codigoOpcode + codigoRegistro;
 
         return codigo;
+    }
+
+    /**
+     * Codifica una instrucción completa en 16 bits.
+     *
+     * Formato: [ opcode (4) | registro (4) | signo (1) | magnitud (7) ]
+     *
+     * Es la concatenación del primer byte (opcode + registro) con el
+     * segundo byte (valor en signo-magnitud).
+     *
+     * Esta representación es la que se guarda en UNA posición de memoria
+     * (cada línea del archivo .asm ocupa una sola posición).
+     *
+     * @param instruccion instrucción a codificar
+     * @return string binario de 16 bits
+     */
+    public String instruccionCompleta(Instruccion instruccion) {
+        String primerByte  = primerByte(instruccion);                    // 8 bits
+        String segundoByte = valorEnsamblador(instruccion.getValor());   // 8 bits
+        return primerByte + segundoByte;                                  // 16 bits
     }
 
     /**

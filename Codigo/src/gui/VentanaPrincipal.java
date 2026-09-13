@@ -2,6 +2,7 @@ package gui;
 
 import modelo.Memoria;
 import modelo.CPU;
+import modelo.BCP;
 import modelo.Instruccion;
 import logica.Ensamblador;
 import logica.EjecutorCPU;
@@ -57,6 +58,10 @@ import java.util.List;
  * La ventana también permite ajustar el tamaño de memoria y el límite
  * Kernel/Usuario mediante {@link VentanaConfiguracionMemoria}, siempre
  * que no haya un programa cargado.
+ *
+ * Los botones "Cargar archivo" y "Ajustar memoria" se deshabilitan
+ * automáticamente mientras hay un programa cargado, para evitar
+ * sobrescribirlo o reconfigurar la memoria en uso.
  */
 public class VentanaPrincipal extends JFrame {
 
@@ -75,7 +80,7 @@ public class VentanaPrincipal extends JFrame {
     private JTable tablaMemoria;
     private DefaultTableModel modeloMemoria;
 
-    private JLabel lblPC, lblIR, lblAC, lblAX, lblBX, lblCX, lblDX, lblEstado;
+    private JLabel lblPC, lblIR, lblAC, lblAX, lblBX, lblCX, lblDX, lblEstado, lblId;
     private JLabel lblInfo;
     private JButton btnCargar, btnModo, btnAccion, btnLimpiar, btnEstadisticas, btnAjustarMemoria;
     private JProgressBar progressBar;
@@ -91,7 +96,7 @@ public class VentanaPrincipal extends JFrame {
 
     /* ==================== CONSTANTES ==================== */
 
-    private static final int POSICIONES_POR_INSTRUCCION = 2;  // cada instrucción ocupa 2 posiciones
+    private static final int POSICIONES_POR_INSTRUCCION = 1;  // cada instrucción ocupa 2 posiciones
     private static final int ANCHO_MINIMO_VENTANA = 1400;     // ancho mínimo razonable
     private static final int ALTO_MINIMO_VENTANA = 620;       // alto mínimo razonable
 
@@ -157,6 +162,7 @@ public class VentanaPrincipal extends JFrame {
         cpu = new CPU(limiteKernelActual);
         ejecutor = new EjecutorCPU(cpu, memoria);
         actualizarRegistros();
+        llenarTablaMemoria();
     }
 
     /**
@@ -298,11 +304,13 @@ public class VentanaPrincipal extends JFrame {
             modeloInstrucciones.setRowCount(0);
             modeloMemoria.setRowCount(0);
             actualizarRegistros();
+            llenarTablaMemoria();
             progressBar.setValue(0);
             progressBar.setString("0%");
             actualizarMensajeEstado("Memoria configurada: " + tamanoMemoriaActual
                     + " posiciones, Kernel 0-" + (limiteKernelActual - 1)
                     + ", Usuario " + limiteKernelActual + "-" + (tamanoMemoriaActual - 1));
+            actualizarEstadoBotones();
         }
     }
 
@@ -508,6 +516,7 @@ public class VentanaPrincipal extends JFrame {
         Font labelFont = new Font("Consolas", Font.BOLD, 14);
         Font irFont = new Font("Consolas", Font.BOLD, 12);
 
+        lblId  = crearLabelRegistro("ID:", "-", labelFont, GEMA_MENTE);
         lblPC  = crearLabelRegistro("PC:", "-", labelFont, GEMA_ESPACIO);
         lblIR  = crearLabelRegistro("IR:", "-", irFont, GEMA_REALIDAD);
         lblAC  = crearLabelRegistro("AC:", "-", labelFont, COLOR_SUCCESS);
@@ -519,19 +528,22 @@ public class VentanaPrincipal extends JFrame {
         int y = 0;
 
         gbc.gridy = y++;
-        gbc.gridx = 0; gbc.gridwidth = 1; panel.add(lblPC, gbc);
-        gbc.gridx = 1; panel.add(lblAC, gbc);
+        gbc.gridx = 0; gbc.gridwidth = 1; panel.add(lblId, gbc);
+        gbc.gridx = 1; panel.add(lblPC, gbc);
+
+        gbc.gridy = y++;
+        gbc.gridx = 0; panel.add(lblAC, gbc);
+        gbc.gridx = 1; panel.add(lblAX, gbc);
 
         gbc.gridy = y++;
         gbc.gridx = 0; gbc.gridwidth = 2; panel.add(lblIR, gbc);
 
         gbc.gridy = y++;
-        gbc.gridx = 0; gbc.gridwidth = 1; panel.add(lblAX, gbc);
-        gbc.gridx = 1; panel.add(lblBX, gbc);
+        gbc.gridx = 0; gbc.gridwidth = 1; panel.add(lblBX, gbc);
+        gbc.gridx = 1; panel.add(lblCX, gbc);
 
         gbc.gridy = y++;
-        gbc.gridx = 0; panel.add(lblCX, gbc);
-        gbc.gridx = 1; panel.add(lblDX, gbc);
+        gbc.gridx = 0; gbc.gridwidth = 2; panel.add(lblDX, gbc);
 
         // Etiqueta de estado del proceso (BCP)
         gbc.gridy = y++;
@@ -616,17 +628,26 @@ public class VentanaPrincipal extends JFrame {
      * lo carga en memoria y actualiza la interfaz.
      *
      * Flujo:
-     *   1. Se muestra un FileDialog (filtro visual ".asm").
-     *   2. Se valida con {@link Ensamblador#esArchivoValido(File)}.
-     *   3. Se lee con {@link Ensamblador#leerArchivo(File)}.
-     *   4. Se verifica que el programa quepa en la memoria de usuario.
-     *   5. Se carga con {@link CargarMemoria#cargar(List, Memoria)}.
-     *   6. Se actualizan las tablas, registros y barra de progreso.
+     *   1. Se verifica que no haya un programa ya cargado.
+     *   2. Se muestra un FileDialog (filtro visual ".asm").
+     *   3. Se valida con {@link Ensamblador#esArchivoValido(File)}.
+     *   4. Se lee con {@link Ensamblador#leerArchivo(File)}.
+     *   5. Se verifica que el programa quepa en la memoria de usuario.
+     *   6. Se carga con {@link CargarMemoria#cargar(List, Memoria)}.
+     *   7. Se actualizan las tablas, registros y barra de progreso.
      *
      * Si cualquier paso falla, se muestra un mensaje y el estado previo
      * del programa cargado se preserva.
      */
     private void cargarArchivo() {
+        if (instrucciones != null) {
+            JOptionPane.showMessageDialog(this,
+                    "Ya hay un programa cargado.\n"
+                    + "Presiona 'Limpiar' antes de cargar otro archivo.",
+                    "Memoria en uso", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
         FileDialog fileDialog = new FileDialog(this, "Seleccionar archivo ASM", FileDialog.LOAD);
         fileDialog.setSize(900, 650);
 
@@ -695,13 +716,15 @@ public class VentanaPrincipal extends JFrame {
                 actualizarBarraProgreso();
                 actualizarMensajeEstado("Programa cargado: " + instrucciones.size()
                         + " instrucciones desde " + archivo.getName());
-                btnAjustarMemoria.setEnabled(false);
+                actualizarEstadoBotones();
 
             } catch (NumberFormatException e) {
                 instrucciones = null;
+                actualizarEstadoBotones();
                 mostrarError("Error de formato numerico al leer el archivo:\n" + e.getMessage());
             } catch (RuntimeException e) {
                 instrucciones = null;
+                actualizarEstadoBotones();
                 mostrarError("Error inesperado al leer el archivo:\n" + e.getMessage());
             }
         }
@@ -716,7 +739,9 @@ public class VentanaPrincipal extends JFrame {
     private void llenarTablaInstrucciones() {
         modeloInstrucciones.setRowCount(0);
         Traductor traductor = new Traductor();
+
         for (Instruccion instr : instrucciones) {
+            // Texto ensamblador
             String texto;
             if ("MOV".equals(instr.getOpcode())) {
                 texto = instr.getOpcode() + " " + instr.getRegistro() + ", " + instr.getValor();
@@ -724,23 +749,55 @@ public class VentanaPrincipal extends JFrame {
                 texto = instr.getOpcode() + " " + instr.getRegistro();
             }
 
-            String primerByte  = traductor.primerByte(instr);
-            String segundoByte = traductor.valorEnsamblador(instr.getValor());
-            String binario = primerByte.substring(0, 4) + " " + primerByte.substring(4, 8) + " " + segundoByte;
+            // Binario con separadores visuales (solo para mostrar)
+            String completo = traductor.instruccionCompleta(instr);
+            String binario = completo.substring(0, 4)   // opcode
+                           + " "
+                           + completo.substring(4, 8)   // registro
+                           + " "
+                           + completo.substring(8, 16); // valor
 
             modeloInstrucciones.addRow(new Object[]{texto, binario});
         }
     }
 
     /**
-     * Llena la tabla de memoria con las posiciones ocupadas por el programa
-     * en la zona de usuario.
+     * Llena la tabla de memoria con:
+     *   - Las posiciones del kernel que tienen datos (el BCP).
+     *   - Una fila "..." para indicar el resto del kernel.
+     *   - Las posiciones del usuario ocupadas por el programa.
+     *
+     * Si no hay programa cargado, igual se muestra el BCP del kernel
+     * (que siempre existe) y luego el separador.
      */
     private void llenarTablaMemoria() {
         modeloMemoria.setRowCount(0);
-        int inicio = memoria.getLimiteKernelUsuario();
-        int fin = inicio + instrucciones.size() * POSICIONES_POR_INSTRUCCION;
-        for (int i = inicio; i < fin; i++) {
+
+        int limiteKernel = memoria.getLimiteKernelUsuario();
+
+        // --- 1. Zona kernel: mostramos las posiciones del BCP ---
+        // El BCP ocupa POSICIONES_REQUERIDAS posiciones al inicio del kernel.
+        // Mostramos solo esas, y luego "..." para el resto del kernel.
+        int posicionesBCP = Math.min(BCP.POSICIONES_REQUERIDAS, limiteKernel);
+
+        for (int i = 0; i < posicionesBCP; i++) {
+            modeloMemoria.addRow(new Object[]{i, memoria.leer(i)});
+        }
+
+        // Separador: resto del kernel (vacío)
+        if (limiteKernel > posicionesBCP) {
+            modeloMemoria.addRow(new Object[]{"...", "..."});
+        }
+
+        // --- 2. Zona usuario: posiciones ocupadas por el programa ---
+        if (instrucciones == null) {
+            return;   // sin programa, no hay nada que mostrar del usuario
+        }
+
+        int inicioUsuario = limiteKernel;
+        int finUsuario = inicioUsuario + instrucciones.size() * POSICIONES_POR_INSTRUCCION;
+
+        for (int i = inicioUsuario; i < finUsuario; i++) {
             modeloMemoria.addRow(new Object[]{i, memoria.leer(i)});
         }
     }
@@ -767,6 +824,7 @@ public class VentanaPrincipal extends JFrame {
 
         ejecutor.ejecutarInstruccion();
         instruccionesEjecutadas++;
+        llenarTablaMemoria(); 
 
         if (instruccionesEjecutadas >= instrucciones.size()) {
             finalizarEjecucion();
@@ -799,6 +857,7 @@ public class VentanaPrincipal extends JFrame {
             ejecutor.ejecutarInstruccion();
             instruccionesEjecutadas++;
         }
+        llenarTablaMemoria();
         finalizarEjecucion();
 
         revalidate();
@@ -816,6 +875,7 @@ public class VentanaPrincipal extends JFrame {
         tablaInstrucciones.repaint();
         actualizarRegistros();
         actualizarBarraProgreso();
+        llenarTablaMemoria(); 
         actualizarMensajeEstado("Programa completado!");
         progressBar.setForeground(COLOR_SUCCESS);
     }
@@ -825,6 +885,7 @@ public class VentanaPrincipal extends JFrame {
      * con los valores actuales de la CPU.
      */
     private void actualizarRegistros() {
+        lblId.setText("ID: " + ejecutor.getBcp().getId());
         lblPC.setText("PC: " + cpu.getPC());
 
         // IR se muestra como binario de 16 bits (con ceros a la izquierda)
@@ -893,11 +954,27 @@ public class VentanaPrincipal extends JFrame {
     }
 
     /**
+     * Sincroniza el estado de los botones que dependen de si hay
+     * un programa cargado o no.
+     *
+     * - "Cargar archivo": se deshabilita si ya hay un programa (para
+     *   evitar sobrescribirlo sin querer). Se habilita si no hay nada.
+     * - "Ajustar memoria": se deshabilita si hay un programa (no se
+     *   puede reconfigurar mientras hay instrucciones en memoria).
+     *   Se habilita si no hay nada.
+     */
+    private void actualizarEstadoBotones() {
+        boolean hayPrograma = (instrucciones != null);
+        btnCargar.setEnabled(!hayPrograma);
+        btnAjustarMemoria.setEnabled(!hayPrograma);
+    }
+
+    /**
      * Reinicia el sistema completo: crea memoria, CPU y ejecutor nuevos,
      * limpia las tablas, los registros y la barra de progreso.
      *
-     * Vuelve también al modo automático y reactiva el botón de ajuste
-     * de memoria.
+     * Vuelve también al modo automático y reactiva los botones
+     * "Cargar archivo" y "Ajustar memoria".
      */
     private void limpiar() {
         memoria = new Memoria(tamanoMemoriaActual, limiteKernelActual);
@@ -909,12 +986,13 @@ public class VentanaPrincipal extends JFrame {
         modeloInstrucciones.setRowCount(0);
         modeloMemoria.setRowCount(0);
         actualizarRegistros();
+        llenarTablaMemoria();
         progressBar.setValue(0);
         progressBar.setString("0%");
         progressBar.setForeground(COLOR_SUCCESS);
         actualizarMensajeEstado("Sistema limpiado (memoria: " + tamanoMemoriaActual
                 + " posiciones, kernel 0-" + (limiteKernelActual - 1) + ")");
-        btnAjustarMemoria.setEnabled(true);
+        actualizarEstadoBotones();
         modoPasoAPaso = false;
         btnModo.setText("Modo: Automatico");
         btnAccion.setText("Ejecutar");
