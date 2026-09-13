@@ -101,6 +101,7 @@ Los programas deben estar escritos utilizando una instrucción por línea.
 ```text
 OPCODE REGISTRO
 OPCODE REGISTRO, VALOR
+```
 
 ### Reglas
 
