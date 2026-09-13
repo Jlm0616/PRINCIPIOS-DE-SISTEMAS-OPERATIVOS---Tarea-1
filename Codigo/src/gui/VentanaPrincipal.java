@@ -8,6 +8,7 @@ import logica.Ensamblador;
 import logica.EjecutorCPU;
 import logica.CargarMemoria;
 import logica.Traductor;
+import soporte.CodificadorBinario;
 
 import javax.swing.JFrame;
 import javax.swing.JPanel;
@@ -62,6 +63,9 @@ import java.util.List;
  * Los botones "Cargar archivo" y "Ajustar memoria" se deshabilitan
  * automáticamente mientras hay un programa cargado, para evitar
  * sobrescribirlo o reconfigurar la memoria en uso.
+ *
+ * La tabla de memoria permite alternar entre mostrar el binario y su
+ * traducción a texto legible (BCP + instrucciones) con el botón "Traducir".
  */
 public class VentanaPrincipal extends JFrame {
 
@@ -83,6 +87,7 @@ public class VentanaPrincipal extends JFrame {
     private JLabel lblPC, lblIR, lblAC, lblAX, lblBX, lblCX, lblDX, lblEstado, lblId;
     private JLabel lblInfo;
     private JButton btnCargar, btnModo, btnAccion, btnLimpiar, btnEstadisticas, btnAjustarMemoria;
+    private JButton btnTraducir;   // alterna entre binario y traduccion
     private JProgressBar progressBar;
 
     private JPanel panelEstadisticas;  // referencia para forzar repintado
@@ -91,12 +96,13 @@ public class VentanaPrincipal extends JFrame {
 
     private int filaActual = -1;                    // fila resaltada en la tabla (-1 = ninguna)
     private boolean modoPasoAPaso = false;          // false = automático, true = paso a paso
+    private boolean modoTraducido = false;          // false = binario, true = traduccion
     private int tamanoMemoriaActual = 256;          // tamaño actual de memoria configurado
     private int limiteKernelActual = 64;            // límite Kernel/Usuario configurado
 
     /* ==================== CONSTANTES ==================== */
 
-    private static final int POSICIONES_POR_INSTRUCCION = 1;  // cada instrucción ocupa 2 posiciones
+    private static final int POSICIONES_POR_INSTRUCCION = 1;  // 1 posición por instrucción
     private static final int ANCHO_MINIMO_VENTANA = 1400;     // ancho mínimo razonable
     private static final int ALTO_MINIMO_VENTANA = 620;       // alto mínimo razonable
 
@@ -301,6 +307,10 @@ public class VentanaPrincipal extends JFrame {
             instrucciones = null;
             instruccionesEjecutadas = 0;
             filaActual = -1;
+            modoTraducido = false;   // volver a binario
+            if (btnTraducir != null) {
+                btnTraducir.setText("Traducir");
+            }
             modeloInstrucciones.setRowCount(0);
             modeloMemoria.setRowCount(0);
             actualizarRegistros();
@@ -382,7 +392,7 @@ public class VentanaPrincipal extends JFrame {
         JScrollPane scrollInstrucciones = envolverConTitulo(tablaInstrucciones, "Programa cargado", GEMA_ESPACIO);
         scrollInstrucciones.setPreferredSize(new Dimension(400, 0));
 
-        // --- Tabla de memoria (zona usuario) ---
+        // --- Tabla de memoria (kernel + usuario) ---
         modeloMemoria = new DefaultTableModel(new Object[]{"Pos", "Valor"}, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -390,8 +400,24 @@ public class VentanaPrincipal extends JFrame {
             }
         };
         tablaMemoria = crearTablaEstilizada(modeloMemoria, GEMA_REALIDAD);
-        JScrollPane scrollMemoria = envolverConTitulo(tablaMemoria, "Memoria (zona usuario)", GEMA_REALIDAD);
+        JScrollPane scrollMemoria = envolverConTitulo(tablaMemoria, "Memoria", GEMA_REALIDAD);
         scrollMemoria.setPreferredSize(new Dimension(230, 0));
+
+        // Botón "Traducir" debajo de la tabla de memoria
+        btnTraducir = new JButton("Traducir");
+        btnTraducir.setToolTipText("Alterna entre binario y su traduccion a texto legible");
+        btnTraducir.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnTraducir.addActionListener(e -> {
+            modoTraducido = !modoTraducido;
+            btnTraducir.setText(modoTraducido ? "Ver binario" : "Traducir");
+            llenarTablaMemoria();
+        });
+
+        // Panel contenedor: scroll arriba, botón abajo
+        JPanel panelMemoria = new JPanel(new BorderLayout(0, 5));
+        panelMemoria.setOpaque(false);
+        panelMemoria.add(scrollMemoria, BorderLayout.CENTER);
+        panelMemoria.add(btnTraducir, BorderLayout.SOUTH);
 
         // --- Panel de registros de CPU y BCP ---
         JPanel panelRegistros = crearPanelRegistros();
@@ -409,7 +435,7 @@ public class VentanaPrincipal extends JFrame {
 
         gbc.gridx = 1;
         gbc.weightx = 0.23;
-        panel.add(scrollMemoria, gbc);
+        panel.add(panelMemoria, gbc);
 
         gbc.gridx = 2;
         gbc.weightx = 0.35;
@@ -767,6 +793,9 @@ public class VentanaPrincipal extends JFrame {
      *   - Una fila "..." para indicar el resto del kernel.
      *   - Las posiciones del usuario ocupadas por el programa.
      *
+     * Si {@code modoTraducido} es true, muestra la traduccion legible
+     * en lugar del binario (tanto en el BCP como en las instrucciones).
+     *
      * Si no hay programa cargado, igual se muestra el BCP del kernel
      * (que siempre existe) y luego el separador.
      */
@@ -775,13 +804,15 @@ public class VentanaPrincipal extends JFrame {
 
         int limiteKernel = memoria.getLimiteKernelUsuario();
 
-        // --- 1. Zona kernel: mostramos las posiciones del BCP ---
-        // El BCP ocupa POSICIONES_REQUERIDAS posiciones al inicio del kernel.
-        // Mostramos solo esas, y luego "..." para el resto del kernel.
+        // --- 1. Zona kernel: BCP ---
         int posicionesBCP = Math.min(BCP.POSICIONES_REQUERIDAS, limiteKernel);
 
         for (int i = 0; i < posicionesBCP; i++) {
-            modeloMemoria.addRow(new Object[]{i, memoria.leer(i)});
+            String binario = memoria.leer(i);
+            String valor = modoTraducido
+                    ? describirCampoBCP(i, binario)
+                    : binario;
+            modeloMemoria.addRow(new Object[]{i, valor});
         }
 
         // Separador: resto del kernel (vacío)
@@ -789,16 +820,20 @@ public class VentanaPrincipal extends JFrame {
             modeloMemoria.addRow(new Object[]{"...", "..."});
         }
 
-        // --- 2. Zona usuario: posiciones ocupadas por el programa ---
+        // --- 2. Zona usuario: instrucciones ---
         if (instrucciones == null) {
-            return;   // sin programa, no hay nada que mostrar del usuario
+            return;
         }
 
         int inicioUsuario = limiteKernel;
         int finUsuario = inicioUsuario + instrucciones.size() * POSICIONES_POR_INSTRUCCION;
 
         for (int i = inicioUsuario; i < finUsuario; i++) {
-            modeloMemoria.addRow(new Object[]{i, memoria.leer(i)});
+            String binario = memoria.leer(i);
+            String valor = modoTraducido
+                    ? traducirSimple(binario)
+                    : binario;
+            modeloMemoria.addRow(new Object[]{i, valor});
         }
     }
 
@@ -824,7 +859,7 @@ public class VentanaPrincipal extends JFrame {
 
         ejecutor.ejecutarInstruccion();
         instruccionesEjecutadas++;
-        llenarTablaMemoria(); 
+        llenarTablaMemoria();
 
         if (instruccionesEjecutadas >= instrucciones.size()) {
             finalizarEjecucion();
@@ -875,7 +910,7 @@ public class VentanaPrincipal extends JFrame {
         tablaInstrucciones.repaint();
         actualizarRegistros();
         actualizarBarraProgreso();
-        llenarTablaMemoria(); 
+        llenarTablaMemoria();
         actualizarMensajeEstado("Programa completado!");
         progressBar.setForeground(COLOR_SUCCESS);
     }
@@ -983,6 +1018,10 @@ public class VentanaPrincipal extends JFrame {
         instrucciones = null;
         instruccionesEjecutadas = 0;
         filaActual = -1;
+        modoTraducido = false;
+        if (btnTraducir != null) {
+            btnTraducir.setText("Traducir");
+        }
         modeloInstrucciones.setRowCount(0);
         modeloMemoria.setRowCount(0);
         actualizarRegistros();
@@ -1017,5 +1056,75 @@ public class VentanaPrincipal extends JFrame {
                 + "Estado: " + ejecutor.getBcp().getEstado();
 
         JOptionPane.showMessageDialog(this, mensaje, "Estadisticas", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    /* ==================== TRADUCCION DE MEMORIA ==================== */
+
+    /**
+     * Describe el significado de un campo del BCP según su posición.
+     *
+     * @param posicion posición dentro del BCP (0-7)
+     * @param binario  valor binario guardado
+     * @return texto descriptivo (ej. "ID = 1", "PC = 64", "Estado = NUEVO")
+     */
+    private String describirCampoBCP(int posicion, String binario) {
+        if (binario == null) return "(vacio)";
+
+        try {
+            switch (posicion) {
+                case 0:  // ID
+                    return "ID = " + CodificadorBinario.desdeBinario(binario);
+                case 1:  // Estado (2 bits)
+                    switch (binario) {
+                        case "00": return "Estado = NUEVO";
+                        case "01": return "Estado = EJECUTANDO";
+                        case "10": return "Estado = TERMINADO";
+                        default:   return "Estado = DESCONOCIDO";
+                    }
+                case 2:  // PC (16 bits sin signo)
+                    return "PC = " + CodificadorBinario.desdeBinario(binario);
+                case 3:  // AC (16 bits con signo)
+                    return "AC = " + CodificadorBinario.desdeBinarioConSigno(binario);
+                case 4:  // AX
+                    return "AX = " + CodificadorBinario.desdeBinarioConSigno(binario);
+                case 5:  // BX
+                    return "BX = " + CodificadorBinario.desdeBinarioConSigno(binario);
+                case 6:  // CX
+                    return "CX = " + CodificadorBinario.desdeBinarioConSigno(binario);
+                case 7:  // DX
+                    return "DX = " + CodificadorBinario.desdeBinarioConSigno(binario);
+                default:
+                    return "(desconocido)";
+            }
+        } catch (Exception e) {
+            return "(formato invalido)";
+        }
+    }
+
+    /**
+     * Devuelve la traducción simple de una instrucción binaria
+     * (ej. "MOV AX, 5").
+     *
+     * @param binario string de 16 bits
+     * @return texto de la instrucción, o "(invalida)" si no se puede traducir
+     */
+    private String traducirSimple(String binario) {
+        if (binario == null || binario.length() != 16 || !binario.matches("[01]+")) {
+            return "(invalida)";
+        }
+
+        Traductor traductor = new Traductor();
+        String opcode   = traductor.decodificarOpcode(binario.substring(0, 4));
+        String registro = traductor.decodificarRegistro(binario.substring(4, 8));
+        int    valor    = traductor.decodificarValor(binario.substring(8, 16));
+
+        if (opcode == null || registro == null) {
+            return "(desconocida)";
+        }
+
+        if ("MOV".equals(opcode)) {
+            return opcode + " " + registro + ", " + valor;
+        }
+        return opcode + " " + registro;
     }
 }
