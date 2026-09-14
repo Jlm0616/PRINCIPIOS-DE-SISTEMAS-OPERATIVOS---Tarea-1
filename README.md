@@ -142,3 +142,21 @@ Además, la CPU cuenta con:
 
 - `PC`: Contador de programa.
 - `IR`: Registro de instrucción.
+
+---
+
+## Bandera de overflow (OF)
+
+El simulador cuenta con una bandera de overflow (`OF`) para indicar cuando una operación `ADD` o `SUB` genera un resultado que supera el rango permitido para un valor de 16 bits con signo.
+
+Los registros utilizan valores entre `-32768` y `32767`. Cuando el resultado supera este rango:
+
+- El resultado se ajusta a 16 bits.
+- La bandera `OF` cambia a `1`.
+- La bandera permanece activa hasta reiniciar el simulador.
+
+La bandera puede consultarse en:
+
+- **Panel CPU / BCP:** muestra `OF: 0` o `OF: 1`. Cuando hay overflow, se muestra con un fondo rojo suave.
+- **Memoria:** se almacena en la posición `8` del BCP.
+- **Modo traducido:** se muestra como `OF = 1 (overflow)` o `OF = 0`.
