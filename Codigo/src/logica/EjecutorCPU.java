@@ -104,6 +104,15 @@ public class EjecutorCPU {
 
         bcp.setEstado("TERMINADO");
     }
+    
+    /**
+     * Trunca un valor a 16 bits con signo (complemento a 2).
+     * Simula el comportamiento de un registro real de 16 bits.
+     */
+    private int limitarA16Bits(int valor) {
+        int v = valor & 0xFFFF;
+        return (v >= 32768) ? v - 65536 : v;
+    }
 
     /**
      * Ejecuta la operación indicada por el opcode sobre el registro y valor dados.
@@ -125,18 +134,26 @@ public class EjecutorCPU {
         switch (opcode) {
             case "MOV":
                 escribirRegistro(registro, valor);
-                break;
+                break;   // NO resetear overflow (sticky)
             case "LOAD":
                 cpu.setAC(leerRegistro(registro));
-                break;
+                break;   // NO resetear overflow (sticky)
             case "STORE":
                 escribirRegistro(registro, cpu.getAC());
-                break;
+                break;   // NO resetear overflow (sticky)
             case "ADD":
-                cpu.setAC(cpu.getAC() + leerRegistro(registro));
+                int suma = cpu.getAC() + leerRegistro(registro);
+                if (suma > 32767 || suma < -32768) {
+                    cpu.setOverflow(true);   // solo activa, nunca resetea
+                }
+                cpu.setAC(limitarA16Bits(suma));
                 break;
             case "SUB":
-                cpu.setAC(cpu.getAC() - leerRegistro(registro));
+                int resta = cpu.getAC() - leerRegistro(registro);
+                if (resta > 32767 || resta < -32768) {
+                    cpu.setOverflow(true);
+                }
+                cpu.setAC(limitarA16Bits(resta));
                 break;
         }
     }
@@ -166,11 +183,12 @@ public class EjecutorCPU {
      * @param valor    valor a escribir
      */
     private void escribirRegistro(String registro, int valor) {
+        int valorLimitado = limitarA16Bits(valor);
         switch (registro) {
-            case "AX": cpu.setAX(valor); break;
-            case "BX": cpu.setBX(valor); break;
-            case "CX": cpu.setCX(valor); break;
-            case "DX": cpu.setDX(valor); break;
+            case "AX": cpu.setAX(valorLimitado); break;
+            case "BX": cpu.setBX(valorLimitado); break;
+            case "CX": cpu.setCX(valorLimitado); break;
+            case "DX": cpu.setDX(valorLimitado); break;
         }
     }
 

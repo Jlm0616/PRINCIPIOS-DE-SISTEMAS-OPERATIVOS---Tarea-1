@@ -59,6 +59,10 @@ public class Traductor {
      * @return string binario de 8 bits
      */
     public String valorEnsamblador(int valor) {
+        if (valor < -127 || valor > 127) {
+            throw new IllegalArgumentException("Valor fuera de rango [-127, 127]: " + valor);
+        }
+        
         String binario;
         String signo;
         if (valor < 0) {

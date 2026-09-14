@@ -45,9 +45,10 @@ public class BCP {
     private static final int POS_BX     = 5;  // registro BX
     private static final int POS_CX     = 6;  // registro CX
     private static final int POS_DX     = 7;  // registro DX
+    private static final int POS_FLAGS  = 8;   // ← NUEVO: bandera de overflow
 
     /** Cantidad de posiciones de Kernel que este BCP necesita. */
-    public static final int POSICIONES_REQUERIDAS = 8;
+    public static final int POSICIONES_REQUERIDAS = 9;
 
     /* ==================== CÓDIGOS DE ESTADO (2 bits) ==================== */
 
@@ -77,6 +78,7 @@ public class BCP {
         memoria.escribir(POS_BX,     CodificadorBinario.aBinario(0, 16));
         memoria.escribir(POS_CX,     CodificadorBinario.aBinario(0, 16));
         memoria.escribir(POS_DX,     CodificadorBinario.aBinario(0, 16));
+        memoria.escribir(POS_FLAGS,  "0");   // ← NUEVO: sin overflow al inicio
     }
 
     /* ==================== ESCRITURA ==================== */
@@ -96,6 +98,7 @@ public class BCP {
         memoria.escribir(POS_BX,     CodificadorBinario.aBinario(cpu.getBX(), 16));
         memoria.escribir(POS_CX,     CodificadorBinario.aBinario(cpu.getCX(), 16));
         memoria.escribir(POS_DX,     CodificadorBinario.aBinario(cpu.getDX(), 16));
+        memoria.escribir(POS_FLAGS,  cpu.getOverflow() ? "1" : "0");   // ← NUEVO
     }
 
     /**
@@ -107,7 +110,7 @@ public class BCP {
         memoria.escribir(POS_ESTADO, codificarEstado(estado));
     }
 
-    /* ==================== LECTURA ==================== */
+    /* ==================== GETTERS ==================== */
 
     /** @return el identificador del proceso. */
     public int getId() {
@@ -147,6 +150,11 @@ public class BCP {
     /** @return el registro DX guardado en el BCP (con signo). */
     public int getDx() {
         return CodificadorBinario.desdeBinarioConSigno(memoria.leer(POS_DX));
+    }
+
+    /** @return true si la bandera de overflow está activa. */
+    public boolean getOverflow() {
+        return "1".equals(memoria.leer(POS_FLAGS));
     }
 
     /* ==================== MÉTODOS AUXILIARES DE ESTADO ==================== */

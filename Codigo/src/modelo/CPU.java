@@ -19,6 +19,7 @@ public class CPU {
     private int BX;   // registro de propósito general
     private int CX;   // registro de propósito general
     private int DX;   // registro de propósito general
+    private boolean overflow;   // bandera de overflow: true si la última operación desbordó
 
     /**
      * Crea una CPU con todos los registros inicializados en 0,
@@ -34,6 +35,7 @@ public class CPU {
         this.BX = 0;
         this.CX = 0;
         this.DX = 0;
+        this.overflow = false;
     }
 
     /* ==================== GETTERS ==================== */
@@ -45,6 +47,7 @@ public class CPU {
     public int getBX() { return BX; }
     public int getCX() { return CX; }
     public int getDX() { return DX; }
+    public boolean getOverflow() { return overflow; }
 
     /* ==================== SETTERS ==================== */
 
@@ -55,4 +58,5 @@ public class CPU {
     public void setBX(int BX) { this.BX = BX; }
     public void setCX(int CX) { this.CX = CX; }
     public void setDX(int DX) { this.DX = DX; }
+    public void setOverflow(boolean overflow) { this.overflow = overflow; }
 }

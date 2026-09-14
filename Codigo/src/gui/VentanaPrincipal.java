@@ -89,6 +89,7 @@ public class VentanaPrincipal extends JFrame {
     private JButton btnCargar, btnModo, btnAccion, btnLimpiar, btnEstadisticas, btnAjustarMemoria;
     private JButton btnTraducir;   // alterna entre binario y traduccion
     private JProgressBar progressBar;
+    private JLabel lblOverflow; 
 
     private JPanel panelEstadisticas;  // referencia para forzar repintado
 
@@ -550,6 +551,7 @@ public class VentanaPrincipal extends JFrame {
         lblBX  = crearLabelRegistro("BX:", "-", labelFont, new Color(52, 152, 219));
         lblCX  = crearLabelRegistro("CX:", "-", labelFont, GEMA_PODER);
         lblDX  = crearLabelRegistro("DX:", "-", labelFont, new Color(230, 126, 34));
+        lblOverflow = crearLabelRegistro("OF:", "0", labelFont, new Color(192, 57, 43));  // ← NUEVO
 
         int y = 0;
 
@@ -570,6 +572,11 @@ public class VentanaPrincipal extends JFrame {
 
         gbc.gridy = y++;
         gbc.gridx = 0; gbc.gridwidth = 2; panel.add(lblDX, gbc);
+
+        // Etiqueta de la bandera de overflow (OF)
+        gbc.gridy = y++;
+        gbc.gridx = 0; gbc.gridwidth = 2;
+        panel.add(lblOverflow, gbc);   // ← NUEVO
 
         // Etiqueta de estado del proceso (BCP)
         gbc.gridy = y++;
@@ -932,6 +939,14 @@ public class VentanaPrincipal extends JFrame {
         lblBX.setText("BX: " + cpu.getBX());
         lblCX.setText("CX: " + cpu.getCX());
         lblDX.setText("DX: " + cpu.getDX());
+        
+        // Bandera de overflow (OF)
+        lblOverflow.setText("OF: " + (cpu.getOverflow() ? "1" : "0"));
+        if (cpu.getOverflow()) {
+            lblOverflow.setBackground(new Color(231, 76, 60, 80));   // rojo suave
+        } else {
+            lblOverflow.setBackground(new Color(248, 249, 250));      // gris claro
+        }
 
         lblEstado.setText("Estado: " + ejecutor.getBcp().getEstado());
         actualizarColorEstado();
@@ -1093,6 +1108,8 @@ public class VentanaPrincipal extends JFrame {
                     return "CX = " + CodificadorBinario.desdeBinarioConSigno(binario);
                 case 7:  // DX
                     return "DX = " + CodificadorBinario.desdeBinarioConSigno(binario);
+                case 8:  // Flags (overflow)
+                    return "OF = " + ("1".equals(binario) ? "1 (overflow)" : "0");
                 default:
                     return "(desconocido)";
             }

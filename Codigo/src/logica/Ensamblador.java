@@ -37,7 +37,12 @@ public class Ensamblador {
     private static final Set<String> REGISTROS_VALIDOS = new HashSet<>(
             Arrays.asList("AX", "BX", "CX", "DX"));
 
+    /** Rango máximo del valor (signo-magnitud de 8 bits). */
+    private static final int VALOR_MAXIMO = 127;
+    private static final int VALOR_MINIMO = -127;
+
     private String primerErrorEncontrado;   // mensaje del primer error detectado
+    private String motivoErrorLinea;        // motivo específico del error de la última línea
 
     /**
      * Verifica que el archivo exista, tenga extensión .asm, y que cada
@@ -81,7 +86,8 @@ public class Ensamblador {
                 }
 
                 if (!esLineaValida(linea)) {
-                    primerErrorEncontrado = "Linea " + numeroLinea + " invalida: \"" + linea + "\"";
+                    primerErrorEncontrado = "Linea " + numeroLinea + ": " + motivoErrorLinea
+                            + "\n-> \"" + linea + "\"";
                     return false;
                 }
 
@@ -114,26 +120,39 @@ public class Ensamblador {
      * @return true si la línea es válida
      */
     private boolean esLineaValida(String linea) {
+        motivoErrorLinea = null;
+
         String[] partes = linea.split(" ");
 
         if (partes.length != 2 && partes.length != 3) {
+            motivoErrorLinea = "se esperaban 2 o 3 partes (OPCODE REGISTRO [VALOR]), se encontraron " + partes.length;
             return false;
         }
 
         String opcode = partes[0].toUpperCase();
         if (!OPCODES_VALIDOS.contains(opcode)) {
+            motivoErrorLinea = "opcode desconocido '" + partes[0] + "'. Válidos: " + OPCODES_VALIDOS;
             return false;
         }
 
         String registro = partes[1].replace(",", "").toUpperCase();
         if (!REGISTROS_VALIDOS.contains(registro)) {
+            motivoErrorLinea = "registro desconocido '" + partes[1] + "'. Válidos: " + REGISTROS_VALIDOS;
             return false;
         }
 
         if (partes.length == 3) {
+            int valor;
             try {
-                Integer.parseInt(partes[2]);
+                valor = Integer.parseInt(partes[2]);
             } catch (NumberFormatException e) {
+                motivoErrorLinea = "el valor '" + partes[2] + "' no es un numero entero";
+                return false;
+            }
+            if (valor < VALOR_MINIMO || valor > VALOR_MAXIMO) {
+                motivoErrorLinea = "el valor " + valor + " esta fuera de rango. "
+                    + "Rango permitido: " + VALOR_MINIMO + " a " + VALOR_MAXIMO
+                    + " (signo-magnitud de 8 bits)";
                 return false;
             }
         }
